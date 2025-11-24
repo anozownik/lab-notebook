@@ -92,7 +92,7 @@ for i in range(epGrating.data.nROIs):
 #%%
 
 #RESPONSES OF --- DRIFTING GRATINGS --- AVERAGE OF ONE SESSION  single session
-
+print(3)
 fig, AX = physion.dataviz.episodes.trial_average.plot(epGrating,
                                                       quantity='dFoF', with_std=False,
                                                       roiIndices='all',
