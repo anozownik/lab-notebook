@@ -18,7 +18,7 @@ static-patch' 'looming-stim' 'Natural-Images-4-repeats'
 
 # TO CHECK A SINGLE SESSION
 
-filename = os.path.join(os.path.expanduser('~'), 'work', 'DATA', 
+filename = os.path.join(os.path.expanduser('~'),  'DATA', 
                         'PN', 'NWBs',
                         '2025_09_17-15-14-34.nwb'
                         )
@@ -74,6 +74,7 @@ epGrating = physion.analysis.process_NWB.EpisodeData(data,
 plot_props = dict(column_key='contrast',
                   with_annotation=True,
                   Ybar=0.5, Ybar_label="0.5$\Delta$F/F",
+                  Xbar=0.5, Xbar_label="0.5s",
                   figsize=(9,1.8))
 #%%
 
@@ -92,18 +93,68 @@ for i in range(epGrating.data.nROIs):
 #%%
 
 #RESPONSES OF --- DRIFTING GRATINGS --- AVERAGE OF ONE SESSION  single session
-print(3)
+
+stat_test_props = dict(interval_pre=[-1.,0],                                   
+                       interval_post=[1.,2.],                                   
+                       test='ttest')
 fig, AX = physion.dataviz.episodes.trial_average.plot(epGrating,
-                                                      quantity='dFoF', with_std=False,
-                                                      roiIndices='all',
-                                                      **plot_props)
+                                                quantity='dFoF', with_std=False, column_key='contrast',
+                                                roiIndices='all',
+                                                with_stat_test=True, stat_test_props=stat_test_props,
+                                                with_annotation=True,
+                                                Ybar=0.5, Ybar_label="0.5$\Delta$F/F",
+                                                Xbar=0.5, Xbar_label="0.5s",
+                                                figsize=(9,1.8))
+
+
+#%%
+
+   
+     
+stat_test_props = dict(interval_pre=[-1.,0],                                   
+                       interval_post=[1.,2.],                                   
+                       test='ttest')
+
+
+pvalues = []
+
+for i in range(epGrating.data.nROIs):
+        roiIndex = i
+        response_args = dict(quantity='dFoF', roiIndex=roiIndex)
+
+        result = epGrating.stat_test_for_evoked_responses(response_args = response_args,
+                                           interval_pre=[-2,0], 
+                                           interval_post=[0,3],
+                                           test = 'ttest')
+
+        
+        pvalue, stat = result.pvalue, result.statistic
+
+        pvalues.append(pvalue)
+        print (roiIndex)
+        print("p value : ", pvalue)
+        print("Statictic : ", stat)
+
+        
+
+
+print(pvalues)
 
 #%%
 
 
 
+plot_props = dict(column_key='contrast',
+                  with_annotation=True,
+                  Ybar=0.5, Ybar_label="0.5$\Delta$F/F", 
+                  figsize=(9,1.8))
 
-
+for i in range(epGrating.data.nROIs):
+        roiIndex=i,
+        fig, AX = physion.dataviz.episodes.trial_average.plot(epGrating, with_std=False,
+                                                        roiIndex=roiIndex,
+                                                        **plot_props)
+        pt.show()
 
 
 

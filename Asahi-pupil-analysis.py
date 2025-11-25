@@ -2,7 +2,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import os, sys
-sys.path.append('../src') # add src code directory for physion
+sys.path.append('physion/src') # add src code directory for physion
 import physion
 import physion.utils.plot_tools as pt
 pt.set_style('white')
@@ -18,7 +18,7 @@ data = physion.analysis.read_NWB.Data(filename,
 
 # custom dFoF:
 #dFoF_options = dict()
-#data.build_pupil_diameter()
+data.build_pupil_diameter()
 
 
 
@@ -26,7 +26,7 @@ data = physion.analysis.read_NWB.Data(filename,
 fig, ax = pt.figure()
 cond = data.pupil_diameter<0.9 # everything below 0.9 pupil diameter is not considered
 data.pupil_diameter[cond] = 1
-pt.plot(data.pupil_diameter, ax=ax)
+pt.plot( data.pupil_diameter, ax=ax)
 pt.set_plot(ax, xlim=(1400,1600))
 
 # %%
