@@ -19,10 +19,10 @@ static-patch' 'looming-stim' 'Natural-Images-4-repeats'
 # TO CHECK A SINGLE SESSION
 
 filename = os.path.join(os.path.expanduser('~'),  'DATA', 
-                        'PN', 'NWBs',
-                        '2025_09_17-15-14-34.nwb'
+                        'PN_cond-NDNF-CB1_WT-vs-KD', 'NWBs',
+                        '2025_09_16-11-10-39.nwb'
                         )
-
+ 
 
 
 data = physion.analysis.read_NWB.Data(filename,
@@ -37,7 +37,7 @@ dFoF_options = dict(\
     method_for_F0='sliding_minmax',
     #method_for_F0='sliding_percentile',
     #method_for_F0='percentile', #more strict
-    sliding_window= 60,
+    sliding_window= 300,
     percentile=10,
     roi_to_neuropil_fluo_inclusion_factor=1.,
     neuropil_correction_factor=0.7, 
@@ -55,6 +55,13 @@ rejected = [i for i in range(data.Fluorescence.data.shape[1]) if (i not in valid
 data.build_pupil_diameter()
 data.build_facemotion()
 data.build_running_speed()
+
+# to mark virus for later 
+if 'sgRosa' in data.nwbfile.virus:
+       color = 'grey'
+
+elif 'sgCnr1' in data.nwbfile.virus:
+       color = 'darkred'
 
 
 # %%
@@ -81,10 +88,14 @@ plot_props = dict(column_key='contrast',
 
 #RESPONSES OF --- DRIFTING GRATINGS --- SINGLE ROIs single session 
 
+stat_test_props = dict(interval_pre=[-1.,0],                                   
+                       interval_post=[1.,2.],                                   
+                       test='ttest')
+
 for i in range(epGrating.data.nROIs):
         roiIndex=i,
         fig, AX = physion.dataviz.episodes.trial_average.plot(epGrating, with_std=False,
-                                                        roiIndex=roiIndex,
+                                                        roiIndex=roiIndex,with_stat_test=True, stat_test_props=stat_test_props,
                                                         **plot_props)
         pt.show()
 
@@ -106,17 +117,28 @@ fig, AX = physion.dataviz.episodes.trial_average.plot(epGrating,
                                                 Xbar=0.5, Xbar_label="0.5s",
                                                 figsize=(9,1.8))
 
-
 #%%
 
-   
-     
+
+# to sort by virus 
+fig, AX = physion.dataviz.episodes.trial_average.plot(epGrating,
+                                                quantity='dFoF', with_std=False, column_key='contrast',
+                                                roiIndices='all',
+                                                with_stat_test=True, stat_test_props=stat_test_props,
+                                                with_annotation=True, color = color,
+                                                Ybar=0.5, Ybar_label="0.5$\Delta$F/F",
+                                                Xbar=0.5, Xbar_label="0.5s",
+                                                figsize=(9,1.8))
+
+        
+
+#%%
+    
 stat_test_props = dict(interval_pre=[-1.,0],                                   
                        interval_post=[1.,2.],                                   
                        test='ttest')
 
-
-pvalues = []
+"""pvalues= []
 
 for i in range(epGrating.data.nROIs):
         roiIndex = i
@@ -127,18 +149,44 @@ for i in range(epGrating.data.nROIs):
                                            interval_post=[0,3],
                                            test = 'ttest')
 
-        
         pvalue, stat = result.pvalue, result.statistic
 
         pvalues.append(pvalue)
+        
         print (roiIndex)
         print("p value : ", pvalue)
         print("Statictic : ", stat)
 
-        
+print(pvalues)"""
 
 
-print(pvalues)
+epGrating.compute_summary_data(response_args=response_args,stat_test_props= stat_test_props,response_significance_threshold=0.005,
+                             verbose=True)
+
+
+#%%
+
+
+summary_stats_ROIs = []
+
+for i in range(epGrating.data.nROIs):
+        roiIndex = i
+        response_args = dict(quantity='dFoF', roiIndex=roiIndex)
+
+
+        result = epGrating.compute_summary_data( stat_test_props=stat_test_props,
+                             response_args=response_args,
+                             response_significance_threshold=0.01,
+                             verbose=True)
+        print(result)
+        summary_stats_ROIs.append(result)
+#%%
+
+
+
+
+
+
 
 #%%
 
@@ -441,12 +489,15 @@ for i in range(epBlack2Min.data.nROIs):
 
 # TO LOOP OVER NWB FILES WITH VISUAL STIMULUS --- DRIFITING GRATING ---  multisession
 
-folder = os.path.join(os.path.expanduser('~'), 'work', 'DATA', 
-                        'PN', 'NWBs')
+folder = os.path.join(os.path.expanduser('~'), 'DATA', 
+                        'PN_cond-NDNF-CB1_WT-vs-KD', 'NWBs')
 
 DATASET = physion.analysis.read_NWB.scan_folder_for_NWBfiles(folder,
                                         for_protocol='drifting-grating')
 
+
+
+response_args = dict(quantity='dFoF')
 
 means = [[] for i in range(3)] # array over contrasts
 for i, filename in enumerate(DATASET['files']):
@@ -460,6 +511,12 @@ for i, filename in enumerate(DATASET['files']):
     data.build_pupil_diameter()
     data.build_facemotion()
     data.build_running_speed()
+    
+    if 'sgRosa' in data.nwbfile.virus:
+        color = 'grey'
+    elif 'sgCnr1':
+        color = 'darkred'
+        
 
     if data.nROIs>0:
 
@@ -470,7 +527,8 @@ for i, filename in enumerate(DATASET['files']):
         
         if 'contrast' in epGrating.varied_parameters:
                 fig, AX = physion.dataviz.episodes.trial_average.plot(epGrating,
-                                                                quantity='dFoF', with_std=False,
+                                                                quantity='dFoF', with_std=False, with_stat_test=True, stat_test_props=stat_test_props,
+                                                                color=color,
                                                                 roiIndices='all',
                                                                 **plot_props)
                 for i in range(3):
@@ -479,6 +537,12 @@ for i, filename in enumerate(DATASET['files']):
                 pt.show()     
     else:
            print(' !!!!!!  ', filename)
+
+
+        
+
+
+
 
 
 #%%
