@@ -18,9 +18,9 @@ static-patch' 'looming-stim' 'Natural-Images-4-repeats'
 
 # TO CHECK A SINGLE SESSION
 
-filename = os.path.join(os.path.expanduser('~'),  'DATA', 
+filename = os.path.join(os.path.expanduser('~'),  'DATA', 'Adrianna',
                         'PN_cond-NDNF-CB1_WT-vs-KD', 'NWBs',
-                        '2025_09_16-11-10-39.nwb'
+                        '2025_10_06-15-30-53.nwb'
                         )
  
 
