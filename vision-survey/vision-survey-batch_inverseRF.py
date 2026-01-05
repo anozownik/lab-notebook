@@ -27,7 +27,7 @@ dFoF_options = dict(\
     percentile=10,
     roi_to_neuropil_fluo_inclusion_factor=1.,
     neuropil_correction_factor=0.7, 
-    with_computed_neuropil_fact=False)
+    with_computed_neuropil_fact=True)
 
 # PLOT PROPERTIES --- DRIFTING GRATINGS ---
 stat_test_props = dict(interval_pre=[-1.,0],                                   
@@ -38,16 +38,16 @@ stat_test_props = dict(interval_pre=[-1.,0],
 # TO LOOP OVER NWB FILES WITH VISUAL STIMULUS --- DRIFITING GRATING ---  multisession
 
 folder = os.path.join(os.path.expanduser('~'), 'DATA', 'Adrianna',
-                        'NDNF_cond-CB1_WT-vs-KD', 'NWBs')
+                        'PN_cond-NDNF-CB1_WT-vs-KD', 'NWBs')
 
 DATASET = physion.analysis.read_NWB.scan_folder_for_NWBfiles(folder,
-                                        for_protocol='looming-stim')
+                                        for_protocol='drifting-surround')
 
 
 
 # STATISTICS PROPERTIES --- DRIFTING GRATINGS ---
 stat_test_props = dict(interval_pre=[-1.,0],                                   
-                       interval_post=[2.5,3.5],                                   
+                       interval_post=[1.,2.],                                   
                        test='ttest')
 
 
@@ -57,7 +57,7 @@ plot_props = dict(
                   with_annotation=True,
                   Ybar=0.5, Ybar_label="0.5$\Delta$F/F",
                   Xbar=0.5, Xbar_label="0.5s",
-                  figsize=(2,1.8))
+                  figsize=(13,1.8))
 
 
 # RESPONSE ARGUMENTS --- DRIFTING GRATINGS ---
@@ -70,14 +70,11 @@ summary_stats = []
 
 RUNNING_SPEED_THRESHOLD = 0.5
 
-means = {} 
-run_means ={}
+means = {} # 
 for key in ['sgRosa', 'sgCnr1']:
       means['all-%s' % key] = []
       means['run-%s' % key] = []
       means['still-%s' % key] = []
-      run_means[key] = []
-
 
 for i, filename in enumerate(DATASET['files']):
     
@@ -103,7 +100,7 @@ for i, filename in enumerate(DATASET['files']):
 
         ep = physion.analysis.process_NWB.EpisodeData(data, 
                                                         quantities=['dFoF', 'running_speed'],
-                                                        protocol_name='looming-stim')
+                                                        protocol_name='drifting-surround')
         
         withinEpisode = (ep.t>0) & (ep.t<ep.time_duration[0])
         run = np.mean(ep.running_speed[:,withinEpisode], axis=1) > RUNNING_SPEED_THRESHOLD
@@ -111,7 +108,7 @@ for i, filename in enumerate(DATASET['files']):
         
         
         fig, AX = physion.dataviz.episodes.trial_average.plot(ep,
-                                                        quantity='dFoF', with_std=False, with_stat_test=False, stat_test_props=stat_test_props,
+                                                        quantity='dFoF', with_std=False, with_stat_test=True, stat_test_props=stat_test_props,
                                                         color=color,
                                                         roiIndices='all',
                                                         **plot_props)
@@ -122,9 +119,6 @@ for i, filename in enumerate(DATASET['files']):
         if np.sum( ~run)>=2:
             means['still-%s' % key].append(ep.dFoF[~run,:,:].mean(axis=(0,1)))
         pt.show()
-
-        run_means[key].append(ep.running_speed[:,:].mean(axis=0))
-
 
         result = ep.compute_summary_data( stat_test_props=stat_test_props,
                 response_args=response_args,
@@ -137,6 +131,7 @@ for i, filename in enumerate(DATASET['files']):
            print(' !!!!!!  ', filename)
 
 
+            
 
 
         
@@ -144,74 +139,28 @@ for i, filename in enumerate(DATASET['files']):
 #%%
 from scipy.stats import sem
 
-fig, AX = pt.figure(axes=(1,1))
+fig, AX = pt.figure(axes=(3,1))
 
-
+for j in enumerate(['all', 'run', 'still']):
     
-for i,key, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['grey','r']):
-   
-    pt.plot(ep.t, 
-            np.mean(means[(key)], axis=(0,1)),
-            sy=sem(means[(key)], axis=(0,1)),
-            color=color, ax=AX)
-        #pt.annotate(AX[j],
-            #           'N=%j' % len(means['%s-%s' % (cond, key)][j])+k*'\n',
-            #          (0,0), #ha='right',
-            #         color=color, fontsize=6)
-if i==0:
-        pt.annotate(AX[i], (0.5, 1))
+    for k, key, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['grey','r']):
+        if len(means['%s-%s' %.1 (key)])>1:
+            pt.plot(ep.t, 
+                    np.mean(means['%s-%s' % ( key)], axis=0),
+                    sy=sem(means['%s-%s' % ( key)], axis=0),
+                    color=color, ax=AX[j])
+            pt.annotate(AX[j],
+                        'N=%i' % len(means['%s-%s' % ( key)])+k*'\n',
+                        (0,0), #ha='right',
+                        color=color, fontsize=6)
+    if i==0:
+            pt.annotate(AX[j], (0.5, 1))
+    if j==0:
+            pt.annotate(AX[j], 'drifting-surround',
+                        (0,1), ha='right')
 
-
-pt.set_plot(AX[i], 
-            xlabel='time (s)' if i==2 else '',
-            ylabel='$\\Delta$F/F' if j==0 else '')
-#pt.set_common_ylims(AX)
-# %%
-
-plot_props = dict(
-                  with_annotation=True,
-                  Ybar=1.0, Ybar_label="0.5$\Delta$F/F",
-                  Xbar=0.5, Xbar_label="0.5s",
-                  )
-
-
-fig, AX = pt.figure(axes=(1,1))
-
-
-    
-for i, key, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['grey','r']):
-    
-
-    pt.plot(ep.t, 
-            np.mean(run_means[(key)], axis=0),
-            sy=sem(run_means[(key)], axis=0),
-            ylabel='running speed', xlabel= 'time(s)', 
-            
-            color=color, ax=AX)
-  
-    
-#pt.set_common_ylims(AX)
-
-
-
-
-    
-
-
-
-
-# %%
-fig, AX = pt.figure(axes=(1,1))
-
-
-    
-for i, key, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['grey','r']):
-    
-
-    pt.plot(ep.t, 
-            np.mean(ep.dFoF[:,:,:],axis=(0,1)),
-            sy=sem(ep.dFoF[:,:,:], axis=(0,1)),
-            ylabel='running speed', xlabel= 'time(s)', 
-            
-            color=color, ax=AX)
+    pt.set_plot(AX[j], 
+                xlabel='time (s)' if i==2 else '',
+                ylabel='$\\Delta$F/F' if j==0 else '')
+pt.set_common_ylims(AX)
 # %%

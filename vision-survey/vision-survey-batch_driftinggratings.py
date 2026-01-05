@@ -1,7 +1,7 @@
 
 import numpy as np
 import os, sys
-sys.path.append('physion/src') # add src code directory for physion
+sys.path.append('../physion/src') # add src code directory for physion
 import physion
 import physion.utils.plot_tools as pt
 pt.set_style('ticks')
@@ -139,6 +139,39 @@ for i, filename in enumerate(DATASET['files']):
         
 
 #%%
+# 
+
+from scipy.stats import sem
+
+fig, AX = pt.figure(axes=(3,3))
+
+for j, cond in enumerate(['all', 'run', 'still']):
+    for i, c in zip(range(3), epGrating.varied_parameters['contrast']):
+        for k, key, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['r','b']):
+            if len(means['%s-%s' % (cond, key)][i])>1:
+                pt.plot(epGrating.t, 
+                        np.mean(means['%s-%s' % (cond, key)][i], axis=0),
+                        sy=sem(means['%s-%s' % (cond, key)][i], axis=0),
+                        color=color, ax=AX[i][j])
+                pt.annotate(AX[i][j],
+                            'N=%i' % len(means['%s-%s' % (cond, key)][i])+k*'\n',
+                            (0,0), #ha='right',
+                            color=color, fontsize=6)
+        if i==0:
+             pt.annotate(AX[i][j], cond, (0.5, 1))
+        if j==0:
+             pt.annotate(AX[i][j], 'contrast=%.1f ' % c,
+                         (0,1), ha='right')
+
+        pt.set_plot(AX[i][j], 
+                    xlabel='time (s)' if i==2 else '',
+                    ylabel='$\\Delta$F/F' if j==0 else '')
+pt.set_common_ylims(AX)
+
+
+#%% 
+# Sort by contrast and behavior
+# 
 from scipy.stats import sem
 
 fig, AX = pt.figure(axes=(3,3))
