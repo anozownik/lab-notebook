@@ -35,6 +35,8 @@ stat_test_props = dict(interval_pre=[-1.,0],
                        interval_post=[1.,2.],                                   
                        test='ttest')
 
+response_significance_threshold =0.05
+
 
 # TO LOOP OVER NWB FILES WITH VISUAL STIMULUS --- DRIFITING GRATING ---  multisession
 
@@ -70,6 +72,12 @@ response_args = dict(quantity='dFoF')
 summary_stats = []
 
 RUNNING_SPEED_THRESHOLD = 0.1
+
+n_means = {} # 
+for key in ['sgRosa', 'sgCnr1']:
+      n_means['all-%s' % key] = [[] for i in range(3)]
+      n_means['run-%s' % key] = [[] for i in range(3)]
+      n_means['still-%s' % key] = [[] for i in range(3)]
 
 means = {} # 
 for key in ['sgRosa', 'sgCnr1']:
@@ -107,15 +115,23 @@ for i, filename in enumerate(DATASET['files']):
         run = np.mean(epGrating.running_speed[:,withinEpisode], axis=1) > RUNNING_SPEED_THRESHOLD
 
         
+        
+                
+
+    
+        
+       
         if 'contrast' in epGrating.varied_parameters:
                 fig, AX = physion.dataviz.episodes.trial_average.plot(epGrating,
                                                                 quantity='dFoF', with_std=False, with_stat_test=True, stat_test_props=stat_test_props,
                                                                 color=color,
-                                                                roiIndices='all',
+                                                                roiIndices= 'all',
                                                                 **plot_props)
                 for i in range(3):
                         contrast_cond = epGrating.find_episode_cond(key='contrast', index=i)
                         means['all-%s' % key][i].append(epGrating.dFoF[contrast_cond,:,:].mean(axis=(0,1)))
+                      
+
                         if np.sum(contrast_cond & run)>=2:
                             means['run-%s' % key][i].append(epGrating.dFoF[contrast_cond & run,:,:].mean(axis=(0,1)))
                         if np.sum(contrast_cond & ~run)>=2:
@@ -169,71 +185,7 @@ for j, cond in enumerate(['all', 'run', 'still']):
 pt.set_common_ylims(AX)
 
 
-#%% 
-# Sort by contrast and behavior
-# 
-from scipy.stats import sem
 
-fig, AX = pt.figure(axes=(3,3))
-
-for j, cond in enumerate(['all', 'run', 'still']):
-    for i, c in zip(range(3), epGrating.varied_parameters['contrast']):
-        for k, key, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['r','b']):
-            if len(means['%s-%s' % (cond, key)][i])>1:
-                pt.plot(epGrating.t, 
-                        np.mean(means['%s-%s' % (cond, key)][i], axis=0),
-                        sy=sem(means['%s-%s' % (cond, key)][i], axis=0),
-                        color=color, ax=AX[i][j])
-                pt.annotate(AX[i][j],
-                            'N=%i' % len(means['%s-%s' % (cond, key)][i])+k*'\n',
-                            (0,0), #ha='right',
-                            color=color, fontsize=6)
-        if i==0:
-             pt.annotate(AX[i][j], cond, (0.5, 1))
-        if j==0:
-             pt.annotate(AX[i][j], 'contrast=%.1f ' % c,
-                         (0,1), ha='right')
-
-        pt.set_plot(AX[i][j], 
-                    xlabel='time (s)' if i==2 else '',
-                    ylabel='$\\Delta$F/F' if j==0 else '')
-pt.set_common_ylims(AX)
-
-#%%
-
-
-# TO LOOP OVER NWB FILES WITH VISUAL STIMULUS --- NATURAL-IMAGES ---  multisession
-DATASET = physion.analysis.read_NWB.scan_folder_for_NWBfiles(folder,
-                                        for_protocol='Natural-Images-4-repeats')
-
-
-means = [[] for i in range(5)] # array over condition
-for i, filename in enumerate(DATASET['files']):
-    
-    data = physion.analysis.read_NWB.Data(filename,
-                                    verbose=False)
-    print(i+1, '--', filename, '--', data.nROIs)
-    print(data.protocols)
-
-    data.build_dFoF(**dFoF_options, verbose=True)
-    #data.build_rawFluo()#(**dFoF_options, verbose=True)
-
-    if data.nROIs>0:
-
-        epNatImg = physion.analysis.process_NWB.EpisodeData(data, 
-                                                        quantities=['dFoF'],
-                                                        protocol_name='Natural-Images-4-repeats')
-        
-        if 'Image-ID' in epNatImg.varied_parameters:
-                fig, AX = physion.dataviz.episodes.trial_average.plot(epNatImg,
-                                                                quantity='dFoF', with_std=False,
-                                                                roiIndices='all',
-                                                                **plot_props)
-                for i in range(5):
-                        image_cond = epNatImg.find_episode_cond(key='Image-ID', index=i)
-                        means[i].append(epNatImg.dFoF[image_cond,:,:].mean(axis=(0,1)))     
-    else:
-           print(' !!!!!!  ', filename)
 
 
 #%%

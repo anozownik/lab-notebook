@@ -80,7 +80,10 @@ plot_props = dict(column_key='contrast',
 
 stat_test_props = dict(interval_pre=[-1.,0],                                   
                        interval_post=[1.,2.],                                   
-                       test='ttest')
+                       test='ttest',
+                       )
+
+
 
 for i in range(epGrating.data.nROIs):
         
@@ -114,7 +117,7 @@ response_args = dict(quantity='Deconvolved')
 
 summary_stats = []
 
-RUNNING_SPEED_THRESHOLD = 0.25
+RUNNING_SPEED_THRESHOLD = 0.05
 
 n_means = {}
 for key in ['sgRosa', 'sgCnr1']:
@@ -159,6 +162,7 @@ for i, filename in enumerate(DATASET['files']):
         
         withinEpisode = (epGrating.t>0) & (epGrating.t<epGrating.time_duration[0])
         run = np.mean(epGrating.running_speed[:,withinEpisode], axis=1) > RUNNING_SPEED_THRESHOLD
+        significant = 
 
         
         if 'contrast' in epGrating.varied_parameters:
@@ -222,7 +226,7 @@ for j, cond in enumerate(['all', 'run', 'still']):
         pt.set_plot(AX[i][j], 
                     xlabel='time (s)' if i==2 else '',
                     ylabel='a.u' if j==0 else '')
-pt.set_common_ylims(AX)
+#pt.set_common_ylims(AX)
 # %%
 
 

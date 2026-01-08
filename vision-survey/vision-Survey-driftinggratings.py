@@ -91,9 +91,20 @@ plot_props = dict(column_key='contrast',
 stat_test_props = dict(interval_pre=[-1.,0],                                   
                        interval_post=[1.,2.],                                   
                        test='ttest')
+contrast_cond = epGrating.find_episode_cond(key='contrast', value = 0.2)
 
-for i in range(epGrating.data.nROIs):
-        roiIndex=i,
+for n in range(epGrating.data.nROIs):
+        significant = np.zeros(data.nROIs, dtype=bool)
+        
+        summary = epGrating.compute_summary_data(\
+                        stat_test_props,
+                        episode_cond = contrast_cond,
+                        response_args=dict(quantity='dFoF',
+                                        roiIndex=n),
+                        response_significance_threshold=0.01,
+        )
+        significant[n] = np.sum(summary['significant'])
+        roiIndex = significant
         fig, AX = physion.dataviz.episodes.trial_average.plot(epGrating, with_std=False,
                                                         roiIndex=roiIndex,with_stat_test=True, stat_test_props=stat_test_props,
                                                         **plot_props)
