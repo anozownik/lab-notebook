@@ -71,7 +71,7 @@ plot_props = dict(
                   with_axis = True,
                   #Ybar=50, Ybar_label=" 50a.u",
                   #Xbar=0.5, Xbar_label="0.5s",
-                  figsize=(9,1.8))# %%
+                  figsize=(3,1.8))# %%
 
 
 
@@ -85,10 +85,10 @@ stat_test_props = dict(interval_pre=[-1.,0],
 for i in range(ep.data.nROIs):
         
         roiIndex=i,
-        fig, AX = physion.dataviz.episodes.trial_average.plot(ep, quantity = 'Deconvolved',with_std=False,
-                                                        roiIndex=roiIndex,with_stat_test=True, stat_test_props=stat_test_props,
-                                                        **plot_props)
-        pt.show()
+        #fig, AX = physion.dataviz.episodes.trial_average.plot(ep, quantity = 'Deconvolved',with_std=False,
+                                                        #roiIndex=roiIndex,with_stat_test=True, stat_test_props=stat_test_props,
+                                                        #**plot_props)
+        #pt.show()
 # %%
 pt.plot(ep.t,ep.Deconvolved[0,0,:])
 # %%
@@ -103,138 +103,17 @@ DATASET = physion.analysis.read_NWB.scan_folder_for_NWBfiles(folder,
 
 #NATURAL IMAGES
 
-plot_props = dict(
-                  with_annotation=True,
-                  with_axis = True,
-                  #Ybar=50, Ybar_label=" 50a.u",
-                  #Xbar=0.5, Xbar_label="0.5s",
-                  figsize=(4,1.8))# %%
-
 response_args = dict(quantity='Deconvolved')
 
 summary_stats = []
 
 RUNNING_SPEED_THRESHOLD = 0.5
 
-means = {} # 
+n_means = {}
 for key in ['sgRosa', 'sgCnr1']:
-    means['all-%s' ] = []
-    means['run-%s' ] = []
-    means['still-%s' ] = []
-
-for i, filename in enumerate(DATASET['files']):
-    
-    data = physion.analysis.read_NWB.Data(filename,
-                                    verbose=False)
-    print(i+1, '--', filename, '--', data.nROIs)
-    print(data.protocols)
-
-       
-    data.build_dFoF(**dFoF_options, verbose=True)
-    data.build_Deconvolved()
-    data.build_pupil_diameter()
-    data.build_facemotion()
-    data.build_running_speed()
-    
-    if 'sgRosa' in data.nwbfile.virus:
-        color = 'grey'
-        key = 'sgRosa'
-    elif 'sgCnr1':
-        color = 'darkred'
-        key = 'sgCnr1'
-        
-
-    if data.nROIs>0:
-
-        ep = physion.analysis.process_NWB.EpisodeData(data, 
-                                                        quantities=['Deconvolved', 'running_speed'],
-                                                        protocol_name='Natural-Images-4-repeats')
-        
-        withinEpisode = (ep.t>0) & (ep.t<ep.time_duration[0])
-        run = np.mean(ep.running_speed[:,withinEpisode], axis=1) > RUNNING_SPEED_THRESHOLD
-
-        
-        fig, AX = physion.dataviz.episodes.trial_average.plot(ep,
-                                                                quantity='Deconvolved', with_std=False, with_stat_test=True, stat_test_props=stat_test_props,
-                                                                color=color,
-                                                                roiIndices='all',
-                                                                **plot_props)
-                
-                
-        means['all-%s' ].append(ep.Deconvolved[:,:,:].mean(axis=(0,1)))
-        if np.sum( run)>=2:
-            means['run-%s' ].append(ep.Deconvolved[run,:,:].mean(axis=(0,1)))
-        if np.sum( ~run)>=2:
-            means['still-%s'].append(ep.Deconvolved[~run,:,:].mean(axis=(0,1)))
-        pt.show()
-
-        result = ep.compute_summary_data( stat_test_props=stat_test_props,
-                        response_args=response_args,
-                             response_significance_threshold=0.01,
-                             verbose=True)
-        print(result)
-        summary_stats.append(result)
-        
-    else:
-           print(' !!!!!!  ', filename)
-
-
-            
-
-
-        
-
-#%%
-# 
-
-from scipy.stats import sem
-
-fig, AX = pt.figure(axes=(3,1))
-
-for j, cond in enumerate(['all', 'run', 'still']):
-   
-    for k, key, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['grey','darkred']):
-        if len(means['%s-%s' % (cond, key)])>1:
-            pt.plot(ep.t, 
-                    np.mean(means['%s-%s' % (cond, key)], axis=0),
-                    sy=sem(means['%s-%s' % (cond, key)], axis=0),
-                    color=color, ax=AX[i][j])
-            pt.annotate(AX[i][j],
-                        'N=%i' % len(means['%s-%s' % (cond, key)])+k*'\n',
-                        (0,0), #ha='right',
-                        color=color, fontsize=6)
-   
-    pt.annotate(AX[j], 'Image-ID=%.1f ' % c,
-                        (0,1), ha='right')
-
-    pt.set_plot(AX[i][j], 
-                xlabel='time (s)' if i==2 else '',
-                ylabel='a.u' if j==0 else '')
-pt.set_common_ylims(AX)
-# %%
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# %%
-
-
-
-DATASET = physion.analysis.read_NWB.scan_folder_for_NWBfiles(folder,
-                                        for_protocol='Natural-Images-4-repeats')
-RUNNING_SPEED_THRESHOLD = 0.1
+      n_means['all-%s' % key] = [0 for i in range(5)]
+      n_means['run-%s' % key] = [0 for i in range(5)]
+      n_means['still-%s' % key] = [0 for i in range(5)]
 
 means = {} # 
 for key in ['sgRosa', 'sgCnr1']:
@@ -242,17 +121,18 @@ for key in ['sgRosa', 'sgCnr1']:
       means['run-%s' % key] = [[] for i in range(5)]
       means['still-%s' % key] = [[] for i in range(5)]
 
-for i, filename in enumerate(DATASET['files']):
+for j, filename in enumerate(DATASET['files']):
     
     data = physion.analysis.read_NWB.Data(filename,
                                     verbose=False)
-    print(i+1, '--', filename, '--', data.nROIs)
+    print(j+1, '--', filename, '--', data.nROIs)
     print(data.protocols)
 
     data.build_dFoF(**dFoF_options, verbose=True)
     data.build_pupil_diameter()
     data.build_facemotion()
     data.build_running_speed()
+    
     data.build_Deconvolved()
     
     if 'sgRosa' in data.nwbfile.virus:
@@ -282,10 +162,14 @@ for i, filename in enumerate(DATASET['files']):
                 for i in range(5):
                         image_cond = ep.find_episode_cond(key='Image-ID', index=i)
                         means['all-%s' % key][i].append(ep.Deconvolved[image_cond,:,:].mean(axis=(0,1)))
-                        if np.sum(image_cond & run)>=2:
+                        n_means['all-%s' % key][i] += np.sum(image_cond)
+                        if np.sum(image_cond & run)>=1:
                             means['run-%s' % key][i].append(ep.Deconvolved[image_cond & run,:,:].mean(axis=(0,1)))
-                        if np.sum(image_cond & ~run)>=2:
+                            n_means['run-%s' % key][i] += np.sum(image_cond & run)
+                        if np.sum(image_cond & ~run)>=1:
                             means['still-%s' % key][i].append(ep.Deconvolved[image_cond & ~run,:,:].mean(axis=(0,1)))
+                            n_means['still-%s' % key][i] += np.sum(image_cond & ~run)
+
                 pt.show()
 
                 result = ep.compute_summary_data( stat_test_props=stat_test_props,
@@ -299,36 +183,54 @@ for i, filename in enumerate(DATASET['files']):
            print(' !!!!!!  ', filename)
 
 
-            
-
-
-        
-
 #%%
+
 from scipy.stats import sem
+print ("with running speed threshold:", RUNNING_SPEED_THRESHOLD)
 
-fig, AX = pt.figure(axes=(3,5))
 
+fig, AX = pt.figure(axes=(3,1))
+i=0
 for j, cond in enumerate(['all', 'run', 'still']):
-    for i, c in zip(range(5), ep.varied_parameters['Image-ID']):
-        for k, key, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['grey','r']):
-            if len(means['%s-%s' % (cond, key)][i])>1:
-                pt.plot(ep.t, 
-                        np.mean(means['%s-%s' % (cond, key)][i], axis=0),
-                        sy=sem(means['%s-%s' % (cond, key)][i], axis=0),
-                        color=color, ax=AX[i][j])
-                pt.annotate(AX[i][j],
-                            'N=%i' % len(means['%s-%s' % (cond, key)][i])+k*'\n',
-                            (0,0), #ha='right',
-                            color=color, fontsize=6)
-        if i==0:
-             pt.annotate(AX[i][j], cond, (0.5, 1))
-        if j==0:
-             pt.annotate(AX[i][j], 'Image-ID=%.1f ' % c,
-                         (0,1), ha='right')
+    
+    for k, key, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['grey','r']):
+        if len(means['%s-%s' % (cond, key)][i])>1:
 
-        pt.set_plot(AX[i][j], 
-                    xlabel='time (s)' if i==2 else '',
-                    ylabel='a.u.' if j==0 else '')
-#pt.set_common_ylims(AX)
+            averaged_over_image = []
+            n_avgd = 0
+            for img in range(5):
+                for recording in means["%s-%s" % (cond, key)][img]:
+                    averaged_over_image.append(recording)
+                n_avgd += n_means["%s-%s" % (cond, key)][img]
+
+            averaged_over_image = np.array(averaged_over_image)
+
+            pt.plot(ep.t, 
+                    np.mean(averaged_over_image, axis=0),
+                    sy=sem(averaged_over_image, axis=0),
+                    color=color, ax=AX[j])
+            pt.annotate(AX[j],
+                        'N=%i' % n_avgd +k*'\n',
+                        (0,0.6), #ha='right',
+                        color=color, fontsize=6)
+
+    pt.annotate(AX[j], cond, (0.5, 1))
+
+    pt.set_plot(AX[j], 
+                xlabel='time (s)' if i==2 else '',
+                ylabel='a.u.' if j==0 else '')
+pt.set_common_ylims(AX)
+
+
+
+
+
+
+
+
+
+
+
+
+
 # %%
