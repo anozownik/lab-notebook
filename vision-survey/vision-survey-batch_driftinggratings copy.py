@@ -1,4 +1,4 @@
-
+# %%
 import numpy as np
 import os, sys
 sys.path.append('../physion/src') # add src code directory for physion
@@ -75,13 +75,22 @@ RUNNING_SPEED_THRESHOLD = 0.1
 NMIN_EPISODES = 2
 NMIN_ROIS = 3
 
+
 # %%
+
+NMIN_ROIS = 3
+NMIN_EPISODES = 3
+
 means = {} # 
 for virus in ['sgRosa', 'sgCnr1']:
       for cond in ['all', 'run', 'still']:
               for c, contrast in enumerate([0.2, 0.6, 1.0]):
                 means['%s-%s-c=%.1f' % (virus, cond, contrast)] = []
-
+percentages = {}
+for virus in ['sgRosa', 'sgCnr1']:
+      for cond in ['all', 'run', 'still']:
+              for c, contrast in enumerate([0.2, 0.6, 1.0]):
+                percentages['%s-%s-c=%.1f' % (virus, cond, contrast)] = []
 
 for i, filename in enumerate(DATASET['files']):
     
@@ -98,49 +107,152 @@ for i, filename in enumerate(DATASET['files']):
     
     if data.nROIs>0:
 
-        epGrating = physion.analysis.process_NWB.EpisodeData(data, 
+        epGrating = physion.analysis.episodes.build.EpisodeData(data, 
                                                         quantities=['dFoF', 'running_speed'],
                                                         protocol_name='drifting-grating')
+        
+        if 'contrast' in epGrating.varied_parameters:
+               
+                # determine virus        
+                if 'sgRosa' in data.nwbfile.virus:
+                        virus = 'sgRosa'
+                elif 'sgCnr1':
+                        virus = 'sgCnr1'
 
-        # determine virus        
-        if 'sgRosa' in data.nwbfile.virus:
-                virus = 'sgRosa'
-        elif 'sgCnr1':
-                virus = 'sgCnr1'
+                # 1) identify visually-responsive cells
+                evokedStats = epGrating.pre_post_statistics_over_cells(\
+                                                        stat_test_props,
+                                                        response_args=\
+                                                        dict(quantity='dFoF'),
+                                                        response_significance_threshold=response_significance_threshold,
+                                                        )
+                
+                # 2) split rest / run
+                withinEpisode = (epGrating.t>0) & (epGrating.t<epGrating.time_duration[0])
+                run = np.mean(epGrating.running_speed[:,withinEpisode], axis=1) > RUNNING_SPEED_THRESHOLD
 
-        # split rest / run
-        withinEpisode = (epGrating.t>0) & (epGrating.t<epGrating.time_duration[0])
-        run = np.mean(epGrating.running_speed[:,withinEpisode], axis=1) > RUNNING_SPEED_THRESHOLD
+                for contrast in epGrating.varied_parameters['contrast']:
+                
+                        # find responsive ROIs for this contrast (from summary stats)
+                        contrastCond = evokedStats['contrast']==contrast
+                        responsiveROIs = evokedStats['significant'][:,contrastCond].flatten()
+                        
+                        # build contrast condition on the single trial episodes
+                        contrast_cond = (epGrating.contrast==contrast)
 
-        # find significant ROIs (for each contrast)
-        for c, contrast in enumerate([0.2, 0.6, 1.0]):
+                        #
+                        print("for session: %s" % filename)
+                        for cond, filter in zip(['all', 'run', 'still'],
+                                                [run|~run, run, ~run]):
+                                
+                                if (np.sum(responsiveROIs)>=NMIN_ROIS) and \
+                                        (np.sum(contrast_cond & filter)>= NMIN_EPISODES):
+                                        print("cond: %s -> included %i ROIs and %i episodes" % (cond, np.sum(responsiveROIs), np.sum(contrast_cond & filter)))
+                                        print("cond: %s -> %i ROIs out of %i ROIs are responsive" % (cond, np.sum(responsiveROIs), len(responsiveROIs)))
+                                        
+                                        means['%s-%s-c=%.1f' % (virus, cond, contrast)].append(
+                                                epGrating.dFoF[contrast_cond & filter, :, :][:, responsiveROIs, :])
+                                        percentage_of_responsive_ROIs = np.sum(evokedStats['significant'])/len(evokedStats['significant'])*100
+                                        percentages['%s-%s-c=%.1f' % (virus, cond, contrast)].append(percentage_of_responsive_ROIs)
+                                else:
+                                        print("cond: %s -> [XX] response not included (%i ROIs, %i eps)" % (cond, np.sum(responsiveROIs), np.sum(contrast_cond & filter)))
+                        print()    
 
-                contrast_cond = epGrating.find_episode_cond(key='contrast',
-                                                            value=contrast)
+# now "means" is a list (over sessions) 
+#    of responses of shape (episodes, responsiveROIs, time)
 
-                significant = np.zeros(data.nROIs, dtype=bool)
-                for n in range(data.nROIs):
-                        summary = epGrating.compute_summary_data(\
-                                        stat_test_props,
-                                        episode_cond =contrast_cond,
-                                        response_args=dict(quantity='dFoF',
-                                                        roiIndex=n),
-                                        response_significance_threshold=response_significance_threshold,
-                        )
-                        significant[n] = np.sum(summary['significant'])
+#%%
+# 
 
-                for cond, filter in zip(['all', 'run', 'still'],
-                                        [run|~run, run, ~run]):
+from scipy.stats import sem
 
-                        np.sum(contrast_cond & run)>=:
+fig, AX = pt.figure(axes=(3,3))
+
+NMIN_SESSIONS = 1
+
+for j, cond in enumerate(['all', 'run', 'still']):
+    for i, contrast in zip(range(3), epGrating.varied_parameters['contrast']):
+        for k, virus, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['grey','red']):
+
+                session_responses = [np.mean(m,axis=(0,1))\
+                        for m in means['%s-%s-c=%.1f' % (virus, cond, contrast)]]
+                
+                if len(session_responses)>=NMIN_SESSIONS:
+                        pt.plot(epGrating.t, 
+                                np.mean(session_responses, axis=0),
+                                sy=sem(session_responses, axis=0),
+                                color=color, ax=AX[i][j])
+                        
+                pt.annotate(AX[i][j],
+                            'N=%i' % len(session_responses)+k*'\n',
+                            (0,0), #ha='right',
+                            color=color, fontsize=6)
+        if i==0:
+             pt.annotate(AX[i][j], cond, (0.5, 1))
+        if j==0:
+             pt.annotate(AX[i][j], 'contrast=%.1f ' % contrast,
+                         (0,1), ha='right')
+
+        pt.set_plot(AX[i][j], 
+                    xlabel='time (s)' if i==2 else '',
+                    ylabel='$\\Delta$F/F' if j==0 else '')
+pt.set_common_ylims(AX)
+
+#%%
+
+fig, AX = pt.figure(axes=(3,3))
+
+NMIN_SESSIONS = 1
+
+for j, cond in enumerate(['all', 'run', 'still']):
+    for i, contrast in zip(range(3), epGrating.varied_parameters['contrast']):
+        for k, virus, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['grey','red']):
+
+                session_responses = [np.mean(m,axis=(0,1))\
+                        for m in means['%s-%s-c=%.1f' % (virus, cond, contrast)]]
+                
+                if len(session_responses)>=NMIN_SESSIONS:
+                        ax.pie(epGrating.t, 
+                                np.mean(session_responses, axis=0),
+                                sy=sem(session_responses, axis=0),
+                                color=color, ax=AX[i][j])
+                        
+                pt.annotate(AX[i][j],
+                            'N=%i' % len(session_responses)+k*'\n',
+                            (0,0), #ha='right',
+                            color=color, fontsize=6)
+        if i==0:
+             pt.annotate(AX[i][j], cond, (0.5, 1))
+        if j==0:
+             pt.annotate(AX[i][j], 'contrast=%.1f ' % contrast,
+                         (0,1), ha='right')
+
+        pt.set_plot(AX[i][j], 
+                    xlabel='time (s)' if i==2 else '',
+                    ylabel='$\\Delta$F/F' if j==0 else '')
+pt.set_common_ylims(AX)
+
+
+
+
+
+
+
+
+
+
+# %%
+contrastCond = summary['contrast']==1.0
+summary
+# %%
+
+                        if np.sum(contrast_cond & run)>=NMIN_EPISODES and \
+                                np.sum(significant)>= NMIN_ROIS:
                                 means['%s-%s-c=%.1f' % (virus, cond, contrast)].append(
                                 epGrating.dFoF[contrast_cond & run, :, :][:, significant, :]
                                 )
                         
-        if np.sum(contrast_cond & run)>=2:
-                means['run-%s' % key][i].append(
-        if np.sum(contrast_cond & ~run)>=2:
-                means['still-%s' % key][i].append(epGrating.dFoF[contrast_cond & ~run,:,:].mean(axis=(0,1)))
+
 
 # %%    
     if 'sgRosa' in data.nwbfile.virus:
