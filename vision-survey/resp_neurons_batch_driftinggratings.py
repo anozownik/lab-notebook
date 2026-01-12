@@ -88,9 +88,9 @@ for virus in ['sgRosa', 'sgCnr1']:
                 means['%s-%s-c=%.1f' % (virus, cond, contrast)] = []
 percentages = {}
 for virus in ['sgRosa', 'sgCnr1']:
-      for cond in ['all', 'run', 'still']:
-              for c, contrast in enumerate([0.2, 0.6, 1.0]):
-                percentages['%s-%s-c=%.1f' % (virus, cond, contrast)] = []
+      
+        for c, contrast in enumerate([0.2, 0.6, 1.0]):
+                percentages['%s-c=%.1f' % (virus, contrast)] = []
 
 for i, filename in enumerate(DATASET['files']):
     
@@ -136,6 +136,7 @@ for i, filename in enumerate(DATASET['files']):
                         # find responsive ROIs for this contrast (from summary stats)
                         contrastCond = evokedStats['contrast']==contrast
                         responsiveROIs = evokedStats['significant'][:,contrastCond].flatten()
+                        percentages['%s-c=%.1f' % (virus, contrast)].append(np.sum(responsiveROIs)/len(responsiveROIs)*100)
                         
                         # build contrast condition on the single trial episodes
                         contrast_cond = (epGrating.contrast==contrast)
@@ -147,13 +148,16 @@ for i, filename in enumerate(DATASET['files']):
                                 
                                 if (np.sum(responsiveROIs)>=NMIN_ROIS) and \
                                         (np.sum(contrast_cond & filter)>= NMIN_EPISODES):
-                                        print("cond: %s -> included %i ROIs and %i episodes" % (cond, np.sum(responsiveROIs), np.sum(contrast_cond & filter)))
-                                        print("cond: %s -> %i ROIs out of %i ROIs are responsive" % (cond, np.sum(responsiveROIs), len(responsiveROIs)))
+                                        print("cond: %s-%s-c=%.1f -> included %i ROIs and %i episodes" % (cond,virus,contrast, np.sum(responsiveROIs), np.sum(contrast_cond & filter)))
+                                        print("cond: %s-%s-c=%.1f -> %i ROIs out of %i ROIs are responsive" % (cond,virus,contrast, np.sum(responsiveROIs), len(responsiveROIs)))
                                         
                                         means['%s-%s-c=%.1f' % (virus, cond, contrast)].append(
                                                 epGrating.dFoF[contrast_cond & filter, :, :][:, responsiveROIs, :])
-                                        percentage_of_responsive_ROIs = np.sum(evokedStats['significant'])/len(evokedStats['significant'])*100
-                                        percentages['%s-%s-c=%.1f' % (virus, cond, contrast)].append(percentage_of_responsive_ROIs)
+                                        
+                                        
+                                        
+                                
+                                        
                                 else:
                                         print("cond: %s -> [XX] response not included (%i ROIs, %i eps)" % (cond, np.sum(responsiveROIs), np.sum(contrast_cond & filter)))
                         print()    
@@ -200,40 +204,41 @@ pt.set_common_ylims(AX)
 
 #%%
 
-fig, AX = pt.figure(axes=(3,3))
+fig, AX = pt.figure(axes=(3,2))
 
 NMIN_SESSIONS = 1
 
-for j, cond in enumerate(['all', 'run', 'still']):
-    for i, contrast in zip(range(3), epGrating.varied_parameters['contrast']):
-        for k, virus, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['grey','red']):
-
-                session_responses = [np.mean(m,axis=(0,1))\
-                        for m in means['%s-%s-c=%.1f' % (virus, cond, contrast)]]
-                
-                if len(session_responses)>=NMIN_SESSIONS:
-                        ax.pie(epGrating.t, 
-                                np.mean(session_responses, axis=0),
-                                sy=sem(session_responses, axis=0),
-                                color=color, ax=AX[i][j])
+for k, virus, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['blue','darkred']):
+        for i, contrast in zip(range(3), epGrating.varied_parameters['contrast']):
+        
+                perc_resp_ROI = np.mean(percentages['%s-c=%.1f' % (virus,contrast)],axis=0)
+                rest = 100-perc_resp_ROI
+                print(perc_resp_ROI,'%s-c=%.1f' % (virus,contrast))
+                pt.pie(data=[perc_resp_ROI,rest],
+                        COLORS=[color,'grey'],
+                        ext_labels = ['resp.','non-resp.'],
                         
-                pt.annotate(AX[i][j],
-                            'N=%i' % len(session_responses)+k*'\n',
-                            (0,0), #ha='right',
-                            color=color, fontsize=6)
-        if i==0:
-             pt.annotate(AX[i][j], cond, (0.5, 1))
-        if j==0:
-             pt.annotate(AX[i][j], 'contrast=%.1f ' % contrast,
-                         (0,1), ha='right')
-
-        pt.set_plot(AX[i][j], 
-                    xlabel='time (s)' if i==2 else '',
-                    ylabel='$\\Delta$F/F' if j==0 else '')
-pt.set_common_ylims(AX)
+                        pie_labels = ['%.1f'%perc_resp_ROI,'%.1f'%rest],
+                        title = '%s-c=%.1f' % (virus,contrast),
+                        ax=AX[k][i])
+                #pt.annotate(AX[k][i],)
+                                
+                               
+                        
 
 
 
+
+
+#%%
+# this pie chart works
+
+index = np.where(evokedStats['contrast']==1.0)[0]
+
+
+percentage=evokedStats['significant'][:,index]
+pt.pie(  data = [percentage, 100-percentage],COLORS= ['r','grey'],ext_labels=['resp.','non-resp.'],  
+pie_labels= ['resp.','non-resp.'])
 
 
 
