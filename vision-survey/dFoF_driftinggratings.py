@@ -28,20 +28,18 @@ dFoF_options = dict(\
     percentile=10,
     roi_to_neuropil_fluo_inclusion_factor=1.,
     neuropil_correction_factor=0.7, 
-    with_computed_neuropil_fact=True)
+    with_computed_neuropil_fact=False)
 
 # PLOT PROPERTIES --- DRIFTING GRATINGS ---
-stat_test_props = dict(interval_pre=[-1.,0],                                   
-                       interval_post=[1.,2.],                                   
-                       test='ttest')
 
-response_significance_threshold =0.05
+
+
 
 
 # TO LOOP OVER NWB FILES WITH VISUAL STIMULUS --- DRIFITING GRATING ---  multisession
 
 folder = os.path.join(os.path.expanduser('~'), 'DATA', 'Adrianna',
-                        'PN_cond-NDNF-CB1_WT-vs-KD', 'NWBs')
+                        'NDNF_cond-CB1_WT-vs-KD', 'NWBs')
 
 DATASET = physion.analysis.read_NWB.scan_folder_for_NWBfiles(folder,
                                         for_protocol='drifting-grating')
@@ -51,8 +49,9 @@ DATASET = physion.analysis.read_NWB.scan_folder_for_NWBfiles(folder,
 # STATISTICS PROPERTIES --- DRIFTING GRATINGS ---
 stat_test_props = dict(interval_pre=[-1.,0],                                   
                        interval_post=[1.,2.],                                   
-                       test='ttest')
-
+                       test='ttest',
+                       sign = 'both')
+response_significance_threshold =0.05
 
 # PLOT PROPERTIES --- DRIFTING GRATINGS ---
 
@@ -107,7 +106,7 @@ for i, filename in enumerate(DATASET['files']):
 
     if data.nROIs>0:
 
-        epGrating = physion.analysis.process_NWB.EpisodeData(data, 
+        epGrating = physion.analysis.episodes.build.EpisodeData(data, 
                                                         quantities=['dFoF', 'running_speed'],
                                                         protocol_name='drifting-grating')
         
@@ -125,7 +124,7 @@ for i, filename in enumerate(DATASET['files']):
                 fig, AX = physion.dataviz.episodes.trial_average.plot(epGrating,
                                                                 quantity='dFoF', with_std=False, with_stat_test=True, stat_test_props=stat_test_props,
                                                                 color=color,
-                                                                roiIndices= 'all',
+                                                                #roiIndices= 'all',
                                                                 **plot_props)
                 for i in range(3):
                         contrast_cond = epGrating.find_episode_cond(key='contrast', index=i)
@@ -138,7 +137,7 @@ for i, filename in enumerate(DATASET['files']):
                             means['still-%s' % key][i].append(epGrating.dFoF[contrast_cond & ~run,:,:].mean(axis=(0,1)))
                 pt.show()
 
-                result = epGrating.compute_summary_data( stat_test_props=stat_test_props,
+                result = epGrating.pre_post_statistics( stat_test_props=stat_test_props,
                         response_args=response_args,
                              response_significance_threshold=0.01,
                              verbose=True)
@@ -163,7 +162,7 @@ fig, AX = pt.figure(axes=(3,3))
 
 for j, cond in enumerate(['all', 'run', 'still']):
     for i, c in zip(range(3), epGrating.varied_parameters['contrast']):
-        for k, key, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['r','b']):
+        for k, key, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['grey','darkred']):
             if len(means['%s-%s' % (cond, key)][i])>1:
                 pt.plot(epGrating.t, 
                         np.mean(means['%s-%s' % (cond, key)][i], axis=0),
@@ -182,7 +181,7 @@ for j, cond in enumerate(['all', 'run', 'still']):
         pt.set_plot(AX[i][j], 
                     xlabel='time (s)' if i==2 else '',
                     ylabel='$\\Delta$F/F' if j==0 else '')
-pt.set_common_ylims(AX)
+#pt.set_common_ylims(AX)
 
 
 

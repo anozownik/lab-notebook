@@ -28,20 +28,15 @@ dFoF_options = dict(\
     percentile=10,
     roi_to_neuropil_fluo_inclusion_factor=1.,
     neuropil_correction_factor=0.7, 
-    with_computed_neuropil_fact=True)
+    with_computed_neuropil_fact=False)
 
-# PLOT PROPERTIES --- DRIFTING GRATINGS ---
-stat_test_props = dict(interval_pre=[-1.,0],                                   
-                       interval_post=[0.5,1.5],                                   
-                       test='ttest')
 
-response_significance_threshold =0.05
 
 
 # TO LOOP OVER NWB FILES WITH VISUAL STIMULUS --- DRIFITING GRATING ---  multisession
 
 folder = os.path.join(os.path.expanduser('~'), 'DATA', 'Adrianna',
-                        'PN_cond-NDNF-CB1_WT-vs-KD', 'NWBs')
+                        'NDNF_cond-CB1_WT-vs-KD', 'NWBs')
 
 DATASET = physion.analysis.read_NWB.scan_folder_for_NWBfiles(folder,
                                         for_protocol='drifting-grating')
@@ -51,7 +46,9 @@ DATASET = physion.analysis.read_NWB.scan_folder_for_NWBfiles(folder,
 # STATISTICS PROPERTIES --- DRIFTING GRATINGS ---
 stat_test_props = dict(interval_pre=[-1.,0],                                   
                        interval_post=[1.,2.],                                   
-                       test='ttest')
+                       test='ttest',
+                       sign ='both')
+response_significance_threshold =0.05
 
 
 # PLOT PROPERTIES --- DRIFTING GRATINGS ---
@@ -71,15 +68,14 @@ response_args = dict(quantity='dFoF')
 
 summary_stats = []
 
-RUNNING_SPEED_THRESHOLD = 0.1
-NMIN_EPISODES = 2
-NMIN_ROIS = 3
+RUNNING_SPEED_THRESHOLD = 0.05
+NMIN_EPISODES = 1
+NMIN_ROIS = 2
 
 
 # %%
 
-NMIN_ROIS = 3
-NMIN_EPISODES = 3
+
 
 means = {} # 
 for virus in ['sgRosa', 'sgCnr1']:
@@ -176,7 +172,7 @@ NMIN_SESSIONS = 1
 
 for j, cond in enumerate(['all', 'run', 'still']):
     for i, contrast in zip(range(3), epGrating.varied_parameters['contrast']):
-        for k, virus, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['grey','red']):
+        for k, virus, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['grey','darkred']):
 
                 session_responses = [np.mean(m,axis=(0,1))\
                         for m in means['%s-%s-c=%.1f' % (virus, cond, contrast)]]
@@ -200,7 +196,7 @@ for j, cond in enumerate(['all', 'run', 'still']):
         pt.set_plot(AX[i][j], 
                     xlabel='time (s)' if i==2 else '',
                     ylabel='$\\Delta$F/F' if j==0 else '')
-pt.set_common_ylims(AX)
+#pt.set_common_ylims(AX)
 
 #%%
 
@@ -246,27 +242,12 @@ pie_labels= ['resp.','non-resp.'])
 
 
 
-# %%
-contrastCond = summary['contrast']==1.0
-summary
-# %%
 
-                        if np.sum(contrast_cond & run)>=NMIN_EPISODES and \
-                                np.sum(significant)>= NMIN_ROIS:
-                                means['%s-%s-c=%.1f' % (virus, cond, contrast)].append(
-                                epGrating.dFoF[contrast_cond & run, :, :][:, significant, :]
-                                )
                         
 
 
-# %%    
-    if 'sgRosa' in data.nwbfile.virus:
-        color = 'grey'
-        key = 'sgRosa'
-    elif 'sgCnr1':
-        color = 'darkred'
-        key = 'sgCnr1'
-        
+    
+
 
         
         
@@ -278,39 +259,12 @@ summary
        
         
 
-pt.show()
-
-#%%
 
 
-fig, AX = physion.dataviz.episodes.trial_average.plot(epGrating,
-                                                quantity='dFoF', with_std=False, with_stat_test=True, stat_test_props=stat_test_props,
-                                                color=color,
-                                                roiIndices= significant,
-                                                **plot_props)
-for i in range(3):
-        
-        
-        
 
-        means['all-%s' % key][i].append(epGrating.dFoF[contrast_cond,:,:].mean(axis=(0,1)))
-        
 
-        if np.sum(contrast_cond & run)>=2:
-                means['run-%s' % key][i].append(epGrating.dFoF[contrast_cond & run,:,:].mean(axis=(0,1)))
-        if np.sum(contrast_cond & ~run)>=2:
-                means['still-%s' % key][i].append(epGrating.dFoF[contrast_cond & ~run,:,:].mean(axis=(0,1)))
-pt.show()
 
-result = epGrating.compute_summary_data( stat_test_props=stat_test_props,
-        response_args=response_args,
-                response_significance_threshold=0.01,
-                verbose=True)
-print(result)
-summary_stats.append(result)
 
-else:
-        print(' !!!!!!  ', filename)
 
 
         
@@ -320,7 +274,7 @@ else:
 
 #%%
 # 
-
+"""
 from scipy.stats import sem
 
 fig, AX = pt.figure(axes=(3,3))
@@ -348,7 +302,7 @@ for j, cond in enumerate(['all', 'run', 'still']):
                     ylabel='$\\Delta$F/F' if j==0 else '')
 pt.set_common_ylims(AX)
 
-
+"""
 
 
 

@@ -37,7 +37,7 @@ dFoF_options = dict(\
     roi_to_neuropil_fluo_inclusion_factor=1.,
     neuropil_correction_factor=0.7, 
     with_computed_neuropil_fact=True,
-    with_correctedFluo_and_F0=False)
+    with_correctedFluo_and_F0=True)
 
 # we first perform the dFoF determination with the above params
 #    (this restrict the available ROIs in the future)
@@ -61,7 +61,7 @@ elif 'sgCnr1' in data.nwbfile.virus:
        color = 'darkred'
 
 # BUILDING --- DRIFTING GRATINGS ---- EPISODE 
-epGrating = physion.analysis.episodes.build.EpisodeData(data, 
+epGrating = physion.analysis.process_NWB.EpisodeData(data, 
                                                     quantities=['rawFluo', 'correctedFluo','Deconvolved','dFoF', 'neuropil','running_speed', 'pupil_diameter', 'facemotion'],
                                                     protocol_name='drifting-grating')
 
@@ -81,7 +81,7 @@ plot_props = dict(column_key='contrast',
 stat_test_props = dict(interval_pre=[-1.,0],                                   
                        interval_post=[1.,2.],                                   
                        test='ttest',
-                       sign ='both')
+                       )
 
 
 
@@ -97,7 +97,7 @@ pt.plot(epGrating.t,epGrating.Deconvolved[0,0,:])
 # %%
 
 folder = os.path.join(os.path.expanduser('~'), 'DATA', 'Adrianna',
-                        'NDNF_cond-CB1_WT-vs-KD', 'NWBs')
+                        'PN_cond-NDNF-CB1_WT-vs-KD', 'NWBs')
 
 DATASET = physion.analysis.read_NWB.scan_folder_for_NWBfiles(folder,
                                         for_protocol='drifting-grating')
@@ -156,20 +156,20 @@ for i, filename in enumerate(DATASET['files']):
 
     if data.nROIs>0:
 
-        epGrating = physion.analysis.episodes.build.EpisodeData(data, 
+        epGrating = physion.analysis.process_NWB.EpisodeData(data, 
                                                         quantities=['Deconvolved', 'running_speed'],
                                                         protocol_name='drifting-grating')
         
         withinEpisode = (epGrating.t>0) & (epGrating.t<epGrating.time_duration[0])
         run = np.mean(epGrating.running_speed[:,withinEpisode], axis=1) > RUNNING_SPEED_THRESHOLD
-        
+        significant = 
 
         
         if 'contrast' in epGrating.varied_parameters:
                 fig, AX = physion.dataviz.episodes.trial_average.plot(epGrating,
                                                                 quantity='Deconvolved', with_std=False, with_stat_test=True, stat_test_props=stat_test_props,
                                                                 color=color,
-                                                                #roiIndices='all',
+                                                                roiIndices='all',
                                                                 **plot_props)
                 for i in range(3):
                         contrast_cond = epGrating.find_episode_cond(key='contrast', index=i)
@@ -182,7 +182,7 @@ for i, filename in enumerate(DATASET['files']):
                             print("number of rest-%s-%s:"%(key,i), np.sum(contrast_cond & ~run))
                 pt.show()
 
-                result = epGrating.pre_post_statistics( stat_test_props=stat_test_props,
+                result = epGrating.compute_summary_data( stat_test_props=stat_test_props,
                         response_args=response_args,
                              response_significance_threshold=0.01,
                              verbose=True)
