@@ -1,6 +1,6 @@
 import numpy as np
 import os, sys
-sys.path.append('../physion/src') # add src code directory for physion
+sys.path.append('./physion/src') # add src code directory for physion
 import physion
 import physion.utils.plot_tools as pt
 pt.set_style('ticks')
@@ -8,9 +8,9 @@ from scipy import stats
 
 #%%
 
-filename = os.path.join(os.path.expanduser('~'),  'DATA', 'Adrianna',
-                        'PN_cond-NDNF-CB1_WT-vs-KD', 'NWBs',
-                        '2025_10_06-15-30-53.nwb'
+filename = os.path.join(os.path.expanduser('~'),  'DATA', 'Adrianna', 
+                        'PN_cond-NDNF-CB1_WT-vs-KD', 'spontaneous', 'NWBs',
+                        '2025_07_30-16-35-55.nwb'
                         )
  
 
@@ -39,9 +39,7 @@ dFoF_options = dict(\
 
 data.build_dFoF(**dFoF_options, verbose=True)
 
-ep = physion.analysis.process_NWB.EpisodeData(data, 
-                                                        quantities=['dFoF'],
-                                                        protocol_name='grey-10min' or 'grey-20min')
+ep = physion.analysis.episodes.build.EpisodeData(data,quantities=['dFoF'], protocol_name ='imaging during spontaneous behavior')
 
 # %%
 Matrix = np.corrcoef(data.dFoF)
@@ -70,11 +68,10 @@ pt.set_plot(ax, xlabel='corr. coef.', ylabel='# pairs',
 # %%
 
 
-folder = os.path.join(os.path.expanduser('~'), 'DATA', 'Adrianna',
-                        'PN_cond-NDNF-CB1_WT-vs-KD', 'NWBs')
+folder = os.path.join(os.path.expanduser('~'), 'DATA', 'Adrianna', 
+                        'PN_cond-NDNF-CB1_WT-vs-KD', 'spontaneous','NWBs')
 
-DATASET = physion.analysis.read_NWB.scan_folder_for_NWBfiles(folder,
-                                        for_protocol='grey-20min')
+DATASET = physion.analysis.read_NWB.scan_folder_for_NWBfiles(folder)
 
 
 plot_props = dict(with_annotation=True,
@@ -92,7 +89,7 @@ for i, filename in enumerate(DATASET['files']):
     print(data.protocols)
 
     data.build_dFoF(**dFoF_options, verbose=True)
-    data.build_running_speed()
+    #data.build_running_speed()
     
     if 'sgRosa' in data.nwbfile.virus:
         color = 'grey'
@@ -103,10 +100,11 @@ for i, filename in enumerate(DATASET['files']):
         
 
     if data.nROIs>0:
+        """
 
         ep = physion.analysis.process_NWB.EpisodeData(data, 
                                                         quantities=['dFoF', 'running_speed'],
-                                                        protocol_name='grey-20min')
+                                                        protocol_name='imaging during spontaneous behavior')
         
         
         
@@ -121,7 +119,7 @@ for i, filename in enumerate(DATASET['files']):
                                                                 quantity='running_speed', with_std=False, 
                                                                 color=color,
                                                                 
-                                                                **plot_props)
+                                                                **plot_props)"""
         
         Matrix = np.corrcoef(data.dFoF)
 
@@ -141,8 +139,10 @@ for i, filename in enumerate(DATASET['files']):
         fig, ax = pt.figure()
         ax.hist(Matrix[triu])
         pt.set_plot(ax, xlabel='corr. coef.', ylabel='# pairs',
-                    title= '%.2f $\pm$ %.2f ' % (\
+                    title= '%s %.2f $\pm$ %.2f ' % (\
+                            filename,
                             np.mean(Matrix[triu]),
                             stats.sem(Matrix[triu])),
+                            
                             xlim=[-0.5,1])
 # %%

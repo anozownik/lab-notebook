@@ -43,7 +43,7 @@ stat_test_props = dict(interval_pre=[-1.,0],
                        test='ttest',
                        sign='both')
 
-response_significance_threshold = 0.05
+#response_significance_threshold = 0.05
 
 # PLOT PROPERTIES --- DRIFTING GRATINGS ---
 
@@ -77,12 +77,12 @@ for virus in ['sgRosa', 'sgCnr1']:
         
         percentages['%s' % virus] = []
 
-for i, filename in enumerate(DATASET['files']):
+for i,filename in enumerate(DATASET['files']):
     
     data = physion.analysis.read_NWB.Data(filename,
                                     verbose=False)
     
-    print(i+1, '--', filename, '--', data.nROIs)
+    print(i+1,'--', filename, '--', data.nROIs)
     # print(data.protocols)
 
     data.build_dFoF(**dFoF_options, verbose=True)
@@ -110,42 +110,41 @@ for i, filename in enumerate(DATASET['files']):
                                                         response_args=\
                                                         dict(quantity='dFoF'),
                                                         response_significance_threshold=response_significance_threshold,
+                                                        repetition_keys=['Image-ID','repeat']
                                                         )
                 
                 # 2) split rest / run
                 withinEpisode = (ep.t>0) & (ep.t<ep.time_duration[0])
                 run = np.mean(ep.running_speed[:,withinEpisode], axis=1) > RUNNING_SPEED_THRESHOLD
 
-                for img_id in ep.varied_parameters['Image-ID']:
                 
-                        # find responsive ROIs for this ImageID (from summary stats)
-                        imageCond = evokedStats['Image-ID']==img_id
-                        responsiveROIs = evokedStats['significant'][:,imageCond].flatten()
-                        percentages['%s' % virus].append(np.sum(responsiveROIs)/len(responsiveROIs)*100)
+                responsiveROIs = evokedStats['significant'].flatten()
+                responsive = np.sum(responsiveROIs)/len(responsiveROIs)*100
+                percentages['%s' % virus].append(responsive)
+                
+                
                         
-                        
-                               
-                        #image_cond = (getattr(ep, 'Image-ID')==img_id)
+                #image_cond = (getattr(ep, 'Image-ID')==img_id)
 
-                #
-                        #print("for session: %s" % filename)
-                        for cond, filter in zip(['all', 'run', 'still'],
-                                                [run|~run, run, ~run]):
+        #
+                #print("for session: %s" % filename)
+                for cond, filter in zip(['all', 'run', 'still'],
+                                        [run|~run, run, ~run]):
+                        
+                        if (np.sum(responsiveROIs)>=NMIN_ROIS) and \
+                                (np.sum( filter)>= NMIN_EPISODES):
+                                print("cond: %s-%s -> included %i ROIs and %i episodes" % (virus,cond, np.sum(responsiveROIs), np.sum( filter)))
+                                print("cond: %s-%s -> %i ROIs out of %i ROIs are responsive" % (cond,virus, np.sum(responsiveROIs), len(responsiveROIs)))
                                 
-                                if (np.sum(responsiveROIs)>=NMIN_ROIS) and \
-                                        (np.sum( filter)>= NMIN_EPISODES):
-                                        #print("cond: %s-%s-%s -> included %i ROIs and %i episodes" % (virus,cond,img_id, np.sum(responsiveROIs), np.sum(image_cond & filter)))
-                                        #print("cond: %s-%s-%s -> %i ROIs out of %i ROIs are responsive" % (cond,virus,img_id, np.sum(responsiveROIs), len(responsiveROIs)))
-                                        
-                                        means['%s-%s' % (virus, cond)].append(
-                                                ep.dFoF[ filter, :, :][:, responsiveROIs, :].mean(axis=(0,1)))
-                                        
-                                        
-                                        
+                                means['%s-%s' % (virus, cond)].append(
+                                        ep.dFoF[filter, :, :][:, responsiveROIs, :])
                                 
-                                        
-                                else:
-                                        print("cond: %s -> [XX] response not included (%i ROIs, %i eps)" % (cond, np.sum(responsiveROIs), np.sum( filter)))
+                                
+                                
+                        
+                                
+                        else:
+                                print("cond: %s -> [XX] response not included (%i ROIs, %i eps)" % (cond, np.sum(responsiveROIs), np.sum( filter)))
                 
 
 # now "means" is a list (over sessions) 
@@ -165,28 +164,30 @@ for j, cond in enumerate(['all', 'run', 'still']):
         for k, virus, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['grey','darkred']):
 
 
-                
-                
-                
+                session_responses = [np.mean(m,axis=(0,1))\
+                        for m in means['%s-%s' % (virus, cond)]]
 
                 if len(means['%s-%s' % (virus,cond)])>1:
+                        #print(means['%s-%s' % (virus,cond)])
+                        #print(virus,cond)
+                        #print(session_responses)
                         pt.plot(ep.t, 
-                                np.mean(means['%s-%s' % (virus,cond)],axis=0),
-                                sy=sem(means['%s-%s' % (virus,cond)],axis=0),
+                                np.mean(session_responses,axis=0),
+                                sy=sem(session_responses,axis=0),
                                 color=color, ax=AX[j])
                         
                 pt.annotate(AX[j],
                                 'N=%i' % len(means['%s-%s'%(virus,cond)])+k*'\n',
-                                (0,0.6), ha='right',
+                                (0.2,0.6), ha='right',
                                 color=color, fontsize=6)
-        if i==0:
+        
                 pt.annotate(AX[j], cond, (0.5, 1))
      
 
         pt.set_plot(AX[j], 
-                xlabel='time (s)' if i==2 else '',
+                xlabel='time (s)',
                 ylabel='$\\Delta$F/F' if j==0 else '')
-pt.set_common_ylims(AX)        
+#pt.set_common_ylims(AX)        
 
 
 
@@ -195,4 +196,24 @@ pt.set_common_ylims(AX)
    
    
 
+# %%
+fig, AX = pt.figure(axes=(2,1))
+
+NMIN_SESSIONS = 1
+
+for k, virus, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['blue','darkred']):
+        
+        
+        perc_resp_ROI = np.mean(percentages['%s' % virus],axis=0)
+        rest = 100-perc_resp_ROI
+        print(perc_resp_ROI,'%s' % virus)
+        pt.pie(data=[perc_resp_ROI,rest],
+                COLORS=[color,'grey'],
+                ext_labels = ['resp.','non-resp.'],
+                
+                pie_labels = ['%.1f'%perc_resp_ROI,'%.1f'%rest],
+                title = '%s' % virus,
+                ax=AX[k])
+                #pt.annotate(AX[k][i],)
+                                
 # %%

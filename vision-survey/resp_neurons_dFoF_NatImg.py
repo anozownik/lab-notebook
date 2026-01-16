@@ -22,7 +22,7 @@ dFoF_options = dict(\
     percentile=10,
     roi_to_neuropil_fluo_inclusion_factor=1.,
     neuropil_correction_factor=0.7, 
-    with_computed_neuropil_fact=True)
+    with_computed_neuropil_fact=False)
 
 
 
@@ -30,7 +30,7 @@ dFoF_options = dict(\
 # TO LOOP OVER NWB FILES WITH VISUAL STIMULUS --- DRIFITING GRATING ---  multisession
 
 folder = os.path.join(os.path.expanduser('~'), 'DATA', 'Adrianna',
-                        'PN_cond-NDNF-CB1_WT-vs-KD', 'NWBs')
+                        'NDNF_cond-CB1_WT-vs-KD', 'NWBs')
 
 DATASET = physion.analysis.read_NWB.scan_folder_for_NWBfiles(folder,
                                         for_protocol='Natural-Images-4-repeats')
@@ -63,7 +63,7 @@ response_args = dict(quantity='dFoF')
 summary_stats = []
 
 RUNNING_SPEED_THRESHOLD = 0.5
-NMIN_ROIS = 3
+NMIN_ROIS = 1
 NMIN_EPISODES = 1
 
 means = {} # 
@@ -175,7 +175,7 @@ for j, cond in enumerate(['all', 'run', 'still']):
                         
                 pt.annotate(AX[i][j],
                             'N=%i' % len(session_responses)+k*'\n',
-                            (0,0.6), ha='right',
+                            (0,0), ha='right',
                             color=color, fontsize=6)
         if i==0:
              pt.annotate(AX[i][j], cond, (0.5, 1))
@@ -186,7 +186,7 @@ for j, cond in enumerate(['all', 'run', 'still']):
         pt.set_plot(AX[i][j], 
                 xlabel='time (s)' if i==2 else '',
                 ylabel='$\\Delta$F/F' if j==0 else '')
-pt.set_common_ylims(AX)        
+#pt.set_common_ylims(AX)        
 
 #%%
 
