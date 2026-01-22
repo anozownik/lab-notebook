@@ -22,7 +22,7 @@ dFoF_options = dict(\
     percentile=10,
     roi_to_neuropil_fluo_inclusion_factor=1.,
     neuropil_correction_factor=0.7, 
-    with_computed_neuropil_fact=False)
+    with_computed_neuropil_fact=True)
 
 
 
@@ -30,7 +30,7 @@ dFoF_options = dict(\
 # TO LOOP OVER NWB FILES WITH VISUAL STIMULUS --- DRIFITING GRATING ---  multisession
 
 folder = os.path.join(os.path.expanduser('~'), 'DATA', 'Adrianna',
-                        'NDNF_cond-CB1_WT-vs-KD', 'NWBs')
+                        'PN_cond-NDNF-CB1_WT-vs-KD', 'NWBs')
 
 DATASET = physion.analysis.read_NWB.scan_folder_for_NWBfiles(folder,
                                         for_protocol='Natural-Images-4-repeats')
@@ -63,8 +63,8 @@ response_args = dict(quantity='dFoF')
 summary_stats = []
 
 RUNNING_SPEED_THRESHOLD = 0.5
-NMIN_ROIS = 1
-NMIN_EPISODES = 1
+NMIN_ROIS = 3
+NMIN_EPISODES = 2
 
 means = {} # 
 for virus in ['sgRosa', 'sgCnr1']:
@@ -158,7 +158,7 @@ from scipy.stats import sem
 
 fig, AX = pt.figure(axes=(3,5))
 
-NMIN_SESSIONS = 0
+NMIN_SESSIONS = 2
 
 for j, cond in enumerate(['all', 'run', 'still']):
     for i, img_id in enumerate([1., 2., 3., 4., 5.]):
@@ -192,7 +192,6 @@ for j, cond in enumerate(['all', 'run', 'still']):
 
 fig, AX = pt.figure(axes=(5,2))
 
-NMIN_SESSIONS = 1
 
 for k, virus, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['blue','darkred']):
         for i, img_id in zip(range(5), ep.varied_parameters['Image-ID']):

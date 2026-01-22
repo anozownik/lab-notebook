@@ -80,6 +80,12 @@ for key in ['sgRosa', 'sgCnr1']:
       means['run-%s' % key] = [[] for i in range(5)]
       means['still-%s' % key] = [[] for i in range(5)]
 
+run_means = {} # 
+for key in ['sgRosa', 'sgCnr1']:
+      run_means['all-%s' % key] = [[] for i in range(5)]
+      run_means['run-%s' % key] = [[] for i in range(5)]
+      run_means['still-%s' % key] = [[] for i in range(35)]
+
 for i, filename in enumerate(DATASET['files']):
     
     data = physion.analysis.read_NWB.Data(filename,
@@ -127,6 +133,15 @@ for i, filename in enumerate(DATASET['files']):
                         if np.sum(image_cond & ~run)>=2:
                             means['still-%s' % key][i].append(ep.dFoF[image_cond & ~run,:,:].mean(axis=(0,1)))
                             n_means['still-%s' % key][i] += np.sum(image_cond & ~run)
+
+                        
+                        run_means['all-%s' % key][i].append(ep.running_speed[image_cond,:].mean(axis=0))
+                      
+
+                        if np.sum(image_cond & run)>=2:
+                            run_means['run-%s' % key][i].append(ep.running_speed[image_cond & run,:].mean(axis=0))
+                        if np.sum(image_cond & ~run)>=2:
+                            run_means['still-%s' % key][i].append(ep.running_speed[image_cond & ~run,:].mean(axis=0))
                 pt.show()
 
                 result = ep.pre_post_statistics( stat_test_props=stat_test_props,
@@ -176,6 +191,39 @@ for j, cond in enumerate(['all', 'run', 'still']):
                     ylabel='$\\Delta$F/F' if j==0 else '')
 pt.set_common_ylims(AX)
 
+
+#%%
+
+fig, AX = pt.figure(axes=(3,5))
+
+for j, cond in enumerate(['all', 'run', 'still']):
+    for i, c in zip(range(5), ep.varied_parameters['Image-ID']):
+        for k, key, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['grey','r']):
+            if len(means['%s-%s' % (cond, key)][i])>1:
+
+                n_avgd = n_means["%s-%s" % (cond, key)][i]
+
+                pt.plot(ep.t, 
+                        np.mean(run_means['%s-%s' % (cond, key)][i], axis=0),
+                        sy=sem(run_means['%s-%s' % (cond, key)][i], axis=0),
+                        color=color, ax=AX[i][j])
+                pt.annotate(AX[i][j],
+                            'N=%i' % n_avgd +k*'\n',
+                            (0,0.6), #ha='right',
+                            color=color, fontsize=6)
+        if i==0:
+             pt.annotate(AX[i][j], cond, (0.5, 1))
+        if j==0:
+             pt.annotate(AX[i][j], 'Image-ID=%.1f ' % c,
+                         (0,1), ha='right')
+
+        pt.set_plot(AX[i][j], 
+                    xlabel='time (s)' if i==2 else '',
+                    ylabel='speed(cm/s)' if j==0 else '',fontsize=5)
+pt.set_common_ylims(AX)
+
+
+
 # %%# we average over all images, not specific for ID - we keep dictionary and make a new one to enumerate the number of trials 
 
 fig, AX = pt.figure(axes=(3,1))
@@ -211,4 +259,36 @@ for j, cond in enumerate(['all', 'run', 'still']):
 pt.set_common_ylims(AX)
 
 
+# %%
+fig, AX = pt.figure(axes=(3,1))
+i=0
+for j, cond in enumerate(['all', 'run', 'still']):
+    
+    for k, key, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['grey','r']):
+        if len(means['%s-%s' % (cond, key)][i])>1:
+
+            averaged_over_image = []
+            n_avgd = 0
+            for img in range(5):
+                for recording in run_means["%s-%s" % (cond, key)][img]:
+                    averaged_over_image.append(recording)
+                n_avgd += n_means["%s-%s" % (cond, key)][img]
+
+            averaged_over_image = np.array(averaged_over_image)
+
+            pt.plot(ep.t, 
+                    np.mean(averaged_over_image, axis=0),
+                    sy=sem(averaged_over_image, axis=0),
+                    color=color, ax=AX[j])
+            pt.annotate(AX[j],
+                        'N=%i' % n_avgd +k*'\n',
+                        (0,0.6), #ha='right',
+                        color=color, fontsize=6)
+
+    pt.annotate(AX[j], cond, (0.5, 1))
+
+    pt.set_plot(AX[j], 
+                xlabel='time (s)' if i==2 else '',
+                ylabel='speed(cm/s)' if j==0 else '')
+pt.set_common_ylims(AX)
 # %%

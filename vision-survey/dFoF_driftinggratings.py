@@ -24,11 +24,12 @@ dFoF_options = dict(\
     method_for_F0='sliding_minmax',
     #method_for_F0='sliding_percentile',
     #method_for_F0='percentile', #more strict
+    
     sliding_window= 300,
     percentile=10,
     roi_to_neuropil_fluo_inclusion_factor=1.,
     neuropil_correction_factor=0.7, 
-    with_computed_neuropil_fact=False)
+    with_computed_neuropil_fact=True)
 
 # PLOT PROPERTIES --- DRIFTING GRATINGS ---
 
@@ -39,7 +40,7 @@ dFoF_options = dict(\
 # TO LOOP OVER NWB FILES WITH VISUAL STIMULUS --- DRIFITING GRATING ---  multisession
 
 folder = os.path.join(os.path.expanduser('~'), 'DATA', 'Adrianna',
-                        'NDNF_cond-CB1_WT-vs-KD', 'NWBs')
+                        'PN_cond-NDNF-CB1_WT-vs-KD', 'NWBs')
 
 DATASET = physion.analysis.read_NWB.scan_folder_for_NWBfiles(folder,
                                         for_protocol='drifting-grating')
@@ -70,7 +71,7 @@ response_args = dict(quantity='dFoF')
 
 summary_stats = []
 
-RUNNING_SPEED_THRESHOLD = 0.1
+RUNNING_SPEED_THRESHOLD = 0.05
 
 n_means = {} # 
 for key in ['sgRosa', 'sgCnr1']:
@@ -83,6 +84,13 @@ for key in ['sgRosa', 'sgCnr1']:
       means['all-%s' % key] = [[] for i in range(3)]
       means['run-%s' % key] = [[] for i in range(3)]
       means['still-%s' % key] = [[] for i in range(3)]
+
+run_means = {} # 
+for key in ['sgRosa', 'sgCnr1']:
+      run_means['all-%s' % key] = [[] for i in range(3)]
+      run_means['run-%s' % key] = [[] for i in range(3)]
+      run_means['still-%s' % key] = [[] for i in range(3)]
+
 
 for i, filename in enumerate(DATASET['files']):
     
@@ -107,34 +115,72 @@ for i, filename in enumerate(DATASET['files']):
     if data.nROIs>0:
 
         epGrating = physion.analysis.episodes.build.EpisodeData(data, 
-                                                        quantities=['dFoF', 'running_speed'],
+                                                        quantities=['dFoF',  'running_speed'],
                                                         protocol_name='drifting-grating')
         
         withinEpisode = (epGrating.t>0) & (epGrating.t<epGrating.time_duration[0])
         run = np.mean(epGrating.running_speed[:,withinEpisode], axis=1) > RUNNING_SPEED_THRESHOLD
 
-        
-        
-                
+        if (epGrating.contrast==1.0).all():
+             
+                fig, AX = physion.dataviz.episodes.trial_average.plot(epGrating,
+                                                quantity='dFoF', with_std=False, with_stat_test=True, stat_test_props=stat_test_props,
+                                                color=color,
+                                                with_annotation=True,
+                                                
+                                                figsize=(1.8,1.8))
+                fig, AX = physion.dataviz.episodes.trial_average.plot(epGrating,
+                                quantity='running_speed', with_std=True, 
+                                color=color,
+                                with_annotation=True,
+                                
+                                figsize=(1.8,1.8))
+                pt.show()
 
-    
+                means['all-%s' % key][2].append(epGrating.dFoF[:,:,:].mean(axis=(0,1)))
+                run_means['all-%s' % key][2].append(epGrating.running_speed[:,:].mean(axis=0))
+
+                if np.sum(run)>=1:
+                            means['run-%s' % key][2].append(epGrating.dFoF[run,:,:].mean(axis=(0,1)))
+                            run_means['run-%s' % key][2].append(epGrating.running_speed[run,:].mean(axis=0))
+                if np.sum(~run)>=1:
+                            means['still-%s' % key][2].append(epGrating.dFoF[~run,:,:].mean(axis=(0,1)))
+                            run_means['still-%s' % key][2].append(epGrating.running_speed[~run,:].mean(axis=0))
+
         
+    
+
        
-        if 'contrast' in epGrating.varied_parameters:
+        elif 'contrast' in epGrating.varied_parameters:
                 fig, AX = physion.dataviz.episodes.trial_average.plot(epGrating,
                                                                 quantity='dFoF', with_std=False, with_stat_test=True, stat_test_props=stat_test_props,
                                                                 color=color,
-                                                                #roiIndices= 'all',
                                                                 **plot_props)
+                fig, AX = physion.dataviz.episodes.trial_average.plot(epGrating,
+                                                quantity='running_speed', with_std=False, with_stat_test=True, stat_test_props=stat_test_props,
+                                                color=color,
+                                                **plot_props)
+
+
+                
                 for i in range(3):
                         contrast_cond = epGrating.find_episode_cond(key='contrast', index=i)
                         means['all-%s' % key][i].append(epGrating.dFoF[contrast_cond,:,:].mean(axis=(0,1)))
                       
 
-                        if np.sum(contrast_cond & run)>=2:
+                        if np.sum(contrast_cond & run)>=1:
                             means['run-%s' % key][i].append(epGrating.dFoF[contrast_cond & run,:,:].mean(axis=(0,1)))
-                        if np.sum(contrast_cond & ~run)>=2:
+                        if np.sum(contrast_cond & ~run)>=1:
                             means['still-%s' % key][i].append(epGrating.dFoF[contrast_cond & ~run,:,:].mean(axis=(0,1)))
+
+
+                        run_means['all-%s' % key][i].append(epGrating.running_speed[contrast_cond,:].mean(axis=0))
+                      
+
+                        if np.sum(contrast_cond & run)>=1:
+                            run_means['run-%s' % key][i].append(epGrating.running_speed[contrast_cond & run,:].mean(axis=0))
+                        if np.sum(contrast_cond & ~run)>=1:
+                            run_means['still-%s' % key][i].append(epGrating.running_speed[contrast_cond & ~run,:].mean(axis=0))
                 pt.show()
 
                 result = epGrating.pre_post_statistics( stat_test_props=stat_test_props,
@@ -144,7 +190,7 @@ for i, filename in enumerate(DATASET['files']):
                 print(result)
                 summary_stats.append(result)
         
-    else:
+        else:
            print(' !!!!!!  ', filename)
 
 
@@ -157,6 +203,7 @@ for i, filename in enumerate(DATASET['files']):
 # 
 
 from scipy.stats import sem
+
 
 fig, AX = pt.figure(axes=(3,3))
 
@@ -171,6 +218,7 @@ for j, cond in enumerate(['all', 'run', 'still']):
                 pt.annotate(AX[i][j],
                             'N=%i' % len(means['%s-%s' % (cond, key)][i])+k*'\n',
                             (0,0), #ha='right',
+
                             color=color, fontsize=6)
         if i==0:
              pt.annotate(AX[i][j], cond, (0.5, 1))
@@ -184,7 +232,32 @@ for j, cond in enumerate(['all', 'run', 'still']):
 #pt.set_common_ylims(AX)
 
 
+#%%
 
+fig, AX = pt.figure(axes=(3,3))
+
+for j, cond in enumerate(['all', 'run', 'still']):
+    for i, c in zip(range(3), epGrating.varied_parameters['contrast']):
+        for k, key, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['grey','darkred']):
+            if len(run_means['%s-%s' % (cond, key)][i])>1:
+                pt.plot(epGrating.t, 
+                        np.mean(run_means['%s-%s' % (cond, key)][i], axis=0),
+                        sy=sem(run_means['%s-%s' % (cond, key)][i], axis=0),
+                        color=color, ax=AX[i][j])
+                pt.annotate(AX[i][j],
+                            'N=%i' % len(run_means['%s-%s' % (cond, key)][i])+k*'\n',
+                            (0,0.6), #ha='right',
+                            color=color, fontsize=6)
+        if i==0:
+             pt.annotate(AX[i][j], cond, (0.5, 1))
+        if j==0:
+             pt.annotate(AX[i][j], 'contrast=%.1f ' % c,
+                         (0,1), ha='right')
+
+        pt.set_plot(AX[i][j], 
+                    xlabel='time (s)' if i==2 else '',
+                    ylabel='spped (cm/s)' if j==0 else '',fontsize=5)
+pt.set_common_ylims(AX)
 
 
 #%%

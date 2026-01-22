@@ -28,7 +28,7 @@ dFoF_options = dict(\
     percentile=10,
     roi_to_neuropil_fluo_inclusion_factor=1.,
     neuropil_correction_factor=0.7, 
-    with_computed_neuropil_fact=False)
+    with_computed_neuropil_fact=True)
 
 
 
@@ -36,7 +36,7 @@ dFoF_options = dict(\
 # TO LOOP OVER NWB FILES WITH VISUAL STIMULUS --- DRIFITING GRATING ---  multisession
 
 folder = os.path.join(os.path.expanduser('~'), 'DATA', 'Adrianna',
-                        'NDNF_cond-CB1_WT-vs-KD', 'NWBs')
+                        'PN_cond-NDNF-CB1_WT-vs-KD', 'NWBs')
 
 DATASET = physion.analysis.read_NWB.scan_folder_for_NWBfiles(folder,
                                         for_protocol='drifting-grating')
@@ -68,9 +68,9 @@ response_args = dict(quantity='dFoF')
 
 summary_stats = []
 
-RUNNING_SPEED_THRESHOLD = 0.05
-NMIN_EPISODES = 1
-NMIN_ROIS = 2
+RUNNING_SPEED_THRESHOLD = 0.5
+NMIN_EPISODES = 2
+NMIN_ROIS = 3
 
 
 # %%
@@ -185,7 +185,7 @@ for j, cond in enumerate(['all', 'run', 'still']):
                         
                 pt.annotate(AX[i][j],
                             'N=%i' % len(session_responses)+k*'\n',
-                            (0,0), #ha='right',
+                            (0,0.6), #ha='right',
                             color=color, fontsize=6)
         if i==0:
              pt.annotate(AX[i][j], cond, (0.5, 1))
@@ -227,50 +227,15 @@ for k, virus, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['blue','darkred']):
 
 
 #%%
-# this pie chart works
+"""
 
 index = np.where(evokedStats['contrast']==1.0)[0]
 
 
-percentage=evokedStats['significant'][:,index]
+percentage= evokedStats['significant'][:,index].flatten()
 pt.pie(  data = [percentage, 100-percentage],COLORS= ['r','grey'],ext_labels=['resp.','non-resp.'],  
 pie_labels= ['resp.','non-resp.'])
-
-
-
-
-
-
-
-
-                        
-
-
-    
-
-
-        
-        
-                
-
-
-             
-        
-       
-        
-
-
-
-
-
-
-
-
-
-        
-
-
-
+"""
 
 #%%
 # 
@@ -451,7 +416,7 @@ pt.plot(epGrating.dFoF[cond2, :, :].mean(axis=(0,1)),
 EPISODES = []
 for p, protocol in enumerate(data.protocols):
     print(p, protocol)
-    EPISODES.append(\
+    EPISODES.append(
         physion.analysis.process_NWB.EpisodeData(data, 
                                     quantities=['dFoF',
                                                 'running_speed'],
@@ -472,4 +437,3 @@ for p, protocol in enumerate(data.protocols):
 EPISODES[8].find_episode_cond(key='x-center', 0)"""
 
 # %%
-x
