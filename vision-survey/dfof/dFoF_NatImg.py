@@ -5,7 +5,7 @@ import physion
 import physion.utils.plot_tools as pt
 pt.set_style('ticks')
 from scipy import stats
-
+import matplotlib.pyplot as plt
     
 # %%
 
@@ -46,7 +46,7 @@ DATASET = physion.analysis.read_NWB.scan_folder_for_NWBfiles(folder,
 stat_test_props = dict(interval_pre=[-1.,0],                                   
                        interval_post=[1.,2.],                                   
                        test='ttest',
-                       sign='both')
+                       sign='positive')
 
 
 # PLOT PROPERTIES --- DRIFTING GRATINGS ---
@@ -84,7 +84,7 @@ run_means = {} #
 for key in ['sgRosa', 'sgCnr1']:
       run_means['all-%s' % key] = [[] for i in range(5)]
       run_means['run-%s' % key] = [[] for i in range(5)]
-      run_means['still-%s' % key] = [[] for i in range(35)]
+      run_means['still-%s' % key] = [[] for i in range(5)]
 
 for i, filename in enumerate(DATASET['files']):
     
@@ -127,10 +127,10 @@ for i, filename in enumerate(DATASET['files']):
                         means['all-%s' % key][i].append(ep.dFoF[image_cond,:,:].mean(axis=(0,1)))
                         n_means['all-%s' % key][i] += np.sum(image_cond)
 
-                        if np.sum(image_cond & run)>=2:
+                        if np.sum(image_cond & run)>=1:
                             means['run-%s' % key][i].append(ep.dFoF[image_cond & run,:,:].mean(axis=(0,1)))
                             n_means['run-%s' % key][i] += np.sum(image_cond & run)
-                        if np.sum(image_cond & ~run)>=2:
+                        if np.sum(image_cond & ~run)>=1:
                             means['still-%s' % key][i].append(ep.dFoF[image_cond & ~run,:,:].mean(axis=(0,1)))
                             n_means['still-%s' % key][i] += np.sum(image_cond & ~run)
 
@@ -162,6 +162,15 @@ for i, filename in enumerate(DATASET['files']):
 
 #%%
 from scipy.stats import sem
+
+if 'PN_cond-NDNF-CB1_WT-vs-KD' in folder:
+       neuron= 'PN-cond-NDNF-CB1'
+elif 'NDNF-cond-CB1_WT-vs-KD':
+       neuron= 'NDNF-cond-CB1'
+
+
+figurepath = '/Users/macbookair/work/Figures/Natural_images/'
+#firgurename = 'dfof_beh_mod_'+ neuron + '.svg'
 
 fig, AX = pt.figure(axes=(3,5))
 
@@ -205,7 +214,7 @@ for j, cond in enumerate(['all', 'run', 'still']):
 
                 pt.plot(ep.t, 
                         np.mean(run_means['%s-%s' % (cond, key)][i], axis=0),
-                        sy=sem(run_means['%s-%s' % (cond, key)][i], axis=0),
+                        #sy=sem(run_means['%s-%s' % (cond, key)][i], axis=0),
                         color=color, ax=AX[i][j])
                 pt.annotate(AX[i][j],
                             'N=%i' % n_avgd +k*'\n',
@@ -260,11 +269,13 @@ pt.set_common_ylims(AX)
 
 
 # %%
+
+firgurename = 'running_natimg'+ neuron + '.svg'
 fig, AX = pt.figure(axes=(3,1))
 i=0
 for j, cond in enumerate(['all', 'run', 'still']):
     
-    for k, key, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['grey','r']):
+    for k, key, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['grey','darkred']):
         if len(means['%s-%s' % (cond, key)][i])>1:
 
             averaged_over_image = []
@@ -291,4 +302,7 @@ for j, cond in enumerate(['all', 'run', 'still']):
                 xlabel='time (s)' if i==2 else '',
                 ylabel='speed(cm/s)' if j==0 else '')
 pt.set_common_ylims(AX)
+
+plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
+
 # %%

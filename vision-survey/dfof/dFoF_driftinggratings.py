@@ -6,7 +6,7 @@ import physion
 import physion.utils.plot_tools as pt
 pt.set_style('ticks')
 from scipy import stats
-
+import matplotlib.pyplot as plt
     
 # %%
 
@@ -24,7 +24,7 @@ dFoF_options = dict(\
     method_for_F0='sliding_minmax',
     #method_for_F0='sliding_percentile',
     #method_for_F0='percentile', #more strict
-    
+
     sliding_window= 300,
     percentile=10,
     roi_to_neuropil_fluo_inclusion_factor=1.,
@@ -71,7 +71,7 @@ response_args = dict(quantity='dFoF')
 
 summary_stats = []
 
-RUNNING_SPEED_THRESHOLD = 0.05
+RUNNING_SPEED_THRESHOLD = 0.1
 
 n_means = {} # 
 for key in ['sgRosa', 'sgCnr1']:
@@ -127,13 +127,15 @@ for i, filename in enumerate(DATASET['files']):
                                                 quantity='dFoF', with_std=False, with_stat_test=True, stat_test_props=stat_test_props,
                                                 color=color,
                                                 with_annotation=True,
-                                                
+                                                Ybar=0.5, Ybar_label="0.5$\Delta$F/F",
+                                                Xbar=0.5, Xbar_label="0.5s",
                                                 figsize=(1.8,1.8))
                 fig, AX = physion.dataviz.episodes.trial_average.plot(epGrating,
                                 quantity='running_speed', with_std=True, 
                                 color=color,
                                 with_annotation=True,
-                                
+                                Ybar=0.5, Ybar_label="speed (cm/s)",
+                                Xbar=0.5, Xbar_label="0.5s",
                                 figsize=(1.8,1.8))
                 pt.show()
 
@@ -159,7 +161,10 @@ for i, filename in enumerate(DATASET['files']):
                 fig, AX = physion.dataviz.episodes.trial_average.plot(epGrating,
                                                 quantity='running_speed', with_std=False, with_stat_test=True, stat_test_props=stat_test_props,
                                                 color=color,
-                                                **plot_props)
+                                                column_key= 'contrast',
+                                                Ybar=0.5, Ybar_label="speed (cm/s)",
+                                                Xbar=0.5, Xbar_label="0.5s",
+                                                figsize=(9,1.8))
 
 
                 
@@ -203,7 +208,14 @@ for i, filename in enumerate(DATASET['files']):
 # 
 
 from scipy.stats import sem
+if 'PN_cond-NDNF-CB1_WT-vs-KD' in folder:
+       neuron= 'PN-cond-NDNF-CB1'
+elif 'NDNF-cond-CB1_WT-vs-KD':
+       neuron= 'NDNF-cond-CB1'
 
+
+figurepath = '/Users/macbookair/work/Figures/'
+firgurename = 'dfof_beh_mod_'+ neuron + '.svg'
 
 fig, AX = pt.figure(axes=(3,3))
 
@@ -213,7 +225,7 @@ for j, cond in enumerate(['all', 'run', 'still']):
             if len(means['%s-%s' % (cond, key)][i])>1:
                 pt.plot(epGrating.t, 
                         np.mean(means['%s-%s' % (cond, key)][i], axis=0),
-                        sy=sem(means['%s-%s' % (cond, key)][i], axis=0),
+                        #sy=sem(means['%s-%s' % (cond, key)][i], axis=0),
                         color=color, ax=AX[i][j])
                 pt.annotate(AX[i][j],
                             'N=%i' % len(means['%s-%s' % (cond, key)][i])+k*'\n',
@@ -229,11 +241,11 @@ for j, cond in enumerate(['all', 'run', 'still']):
         pt.set_plot(AX[i][j], 
                     xlabel='time (s)' if i==2 else '',
                     ylabel='$\\Delta$F/F' if j==0 else '')
-#pt.set_common_ylims(AX)
+pt.set_common_ylims(AX)
 
 
 #%%
-
+firgurename='running_'+ neuron + 'drifgrat' +'.svg'
 fig, AX = pt.figure(axes=(3,3))
 
 for j, cond in enumerate(['all', 'run', 'still']):
@@ -242,7 +254,7 @@ for j, cond in enumerate(['all', 'run', 'still']):
             if len(run_means['%s-%s' % (cond, key)][i])>1:
                 pt.plot(epGrating.t, 
                         np.mean(run_means['%s-%s' % (cond, key)][i], axis=0),
-                        sy=sem(run_means['%s-%s' % (cond, key)][i], axis=0),
+                        #sy=sem(run_means['%s-%s' % (cond, key)][i], axis=0),
                         color=color, ax=AX[i][j])
                 pt.annotate(AX[i][j],
                             'N=%i' % len(run_means['%s-%s' % (cond, key)][i])+k*'\n',
@@ -256,9 +268,9 @@ for j, cond in enumerate(['all', 'run', 'still']):
 
         pt.set_plot(AX[i][j], 
                     xlabel='time (s)' if i==2 else '',
-                    ylabel='spped (cm/s)' if j==0 else '',fontsize=5)
+                    ylabel='speed (cm/s)' if j==0 else '',fontsize=5)
 pt.set_common_ylims(AX)
-
+plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
 
 #%%
 """#build z score per episode - CURRENTLY ON PAUSE

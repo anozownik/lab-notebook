@@ -5,6 +5,7 @@ import physion
 import physion.utils.plot_tools as pt
 pt.set_style('ticks')
 from scipy import stats
+import matplotlib.pyplot as plt
 
     
 # %%
@@ -63,8 +64,8 @@ response_args = dict(quantity='dFoF')
 summary_stats = []
 
 RUNNING_SPEED_THRESHOLD = 0.5
-NMIN_ROIS = 3
-NMIN_EPISODES = 2
+NMIN_ROIS = 1
+NMIN_EPISODES = 1
 
 means = {} # 
 for virus in ['sgRosa', 'sgCnr1']:
@@ -153,12 +154,21 @@ for i, filename in enumerate(DATASET['files']):
 
 #%%
 # 
+if 'PN_cond-NDNF-CB1_WT-vs-KD' in folder:
+       neuron= 'PN-cond-NDNF-CB1'
+elif 'NDNF-cond-CB1_WT-vs-KD':
+       neuron= 'NDNF-cond-CB1'
+
+
+figurepath = '/Users/macbookair/work/Figures/'
+firgurename = 'dfof_natimgID_beh_mod_'+ neuron + '.svg'
+
 
 from scipy.stats import sem
 
 fig, AX = pt.figure(axes=(3,5))
 
-NMIN_SESSIONS = 2
+NMIN_SESSIONS = 1
 
 for j, cond in enumerate(['all', 'run', 'still']):
     for i, img_id in enumerate([1., 2., 3., 4., 5.]):
@@ -170,12 +180,12 @@ for j, cond in enumerate(['all', 'run', 'still']):
                 if len(session_responses)>=NMIN_SESSIONS:
                         pt.plot(ep.t, 
                                 np.mean(session_responses,axis=0),
-                                sy=sem(session_responses, axis=0),
+                                #sy=sem(session_responses, axis=0),
                                 color=color, ax=AX[i][j])
                         
                 pt.annotate(AX[i][j],
                             'N=%i' % len(session_responses)+k*'\n',
-                            (0,0), ha='right',
+                            (0.2,0.6), ha='right',
                             color=color, fontsize=6)
         if i==0:
              pt.annotate(AX[i][j], cond, (0.5, 1))
@@ -186,10 +196,19 @@ for j, cond in enumerate(['all', 'run', 'still']):
         pt.set_plot(AX[i][j], 
                 xlabel='time (s)' if i==2 else '',
                 ylabel='$\\Delta$F/F' if j==0 else '')
-#pt.set_common_ylims(AX)        
+pt.set_common_ylims(AX)  
+
+#plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
+
+#%%
+baselineCond = (Episodes.t>-0.1) & (Episodes.t<0)
+Responses['baselineSubstr_%s' % cond] = [\
+                r-r[baselineCond].min() for r in Responses[cond]]
 
 #%%
 
+
+firgurename = 'pie_natimgID_beh_mod_'+ neuron + '.svg'
 fig, AX = pt.figure(axes=(5,2))
 
 
@@ -208,7 +227,7 @@ for k, virus, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['blue','darkred']):
                         ax=AX[k][i])
                 #pt.annotate(AX[k][i],)
                                 
-  
+plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
    
    
 

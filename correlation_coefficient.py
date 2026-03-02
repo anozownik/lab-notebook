@@ -85,18 +85,13 @@ for i, filename in enumerate(DATASET['files']):
     
     data = physion.analysis.read_NWB.Data(filename,
                                     verbose=False)
-    print(i+1, '--', filename, '--', data.nROIs)
+    print(i+1, '--', filename, '--', data.nROIs,data.nwbfile.virus)
     print(data.protocols)
 
     data.build_dFoF(**dFoF_options, verbose=True)
     #data.build_running_speed()
     
-    if 'sgRosa' in data.nwbfile.virus:
-        color = 'grey'
-        key = 'sgRosa'
-    elif 'sgCnr1':
-        color = 'darkred'
-        key = 'sgCnr1'
+
         
 
     if data.nROIs>0:
@@ -121,6 +116,15 @@ for i, filename in enumerate(DATASET['files']):
                                                                 
                                                                 **plot_props)"""
         
+        if 'cond-NDNF-CB1-wt' in data.nwbfile.virus:
+            color = 'grey'
+            key = 'sgRosa'
+            genotype='WT'
+        elif 'cond-NDNF-CB1-kd':
+            color = 'darkred'
+            key = 'sgCnr1'
+            genotype='KD'
+        
         Matrix = np.corrcoef(data.dFoF)
 
 
@@ -140,7 +144,7 @@ for i, filename in enumerate(DATASET['files']):
         ax.hist(Matrix[triu])
         pt.set_plot(ax, xlabel='corr. coef.', ylabel='# pairs',
                     title= '%s %.2f $\pm$ %.2f ' % (\
-                            filename,
+                            genotype,
                             np.mean(Matrix[triu]),
                             stats.sem(Matrix[triu])),
                             
