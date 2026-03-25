@@ -1,7 +1,7 @@
 # %%
 import numpy as np
 import os, sys
-sys.path.append('../physion/src') # add src code directory for physion
+sys.path.append('../../physion/src') # add src code directory for physion
 import physion
 import physion.utils.plot_tools as pt
 pt.set_style('manuscript')
@@ -30,7 +30,7 @@ dFoF_options = dict(\
     percentile=10,
     roi_to_neuropil_fluo_inclusion_factor=1.,
     neuropil_correction_factor=0.7, 
-    with_computed_neuropil_fact=False)
+    with_computed_neuropil_fact=True)
 
 
 
@@ -38,7 +38,7 @@ dFoF_options = dict(\
 # TO LOOP OVER NWB FILES WITH VISUAL STIMULUS --- DRIFITING GRATING ---  multisession
 
 folder = os.path.join(os.path.expanduser('~'), 'DATA', 'Adrianna',
-                        'NDNF_cond-CB1_WT-vs-KD', 'NWBs')
+                        'PN_cond-NDNF-CB1_WT-vs-KD', 'NWBs')
 
 DATASET = physion.analysis.read_NWB.scan_folder_for_NWBfiles(folder,
                                         for_protocol='static-patch')
@@ -183,26 +183,32 @@ for i,filename in enumerate(DATASET['files']):
 
 
                         # 1) identify visually-responsive cells
-                        evokedStats = epGrating.pre_post_statistics_over_cells(\
+                        evokedStats = epGrating.pre_post_statistics(\
                                                                 stat_test_props,
                                                                 response_args=\
                                                                 dict(quantity='dFoF'),
                                                                 response_significance_threshold=response_significance_threshold,
+                                                                loop_over_cells=True,
+                                                                repetition_keys=['Image-ID','repeat']
                                                                 )
                         
 
-                        pos_evokedStats = epGrating.pre_post_statistics_over_cells(\
+                        pos_evokedStats = epGrating.pre_post_statistics(\
                                                                 pos_stat_test_props,
                                                                 response_args=\
                                                                 dict(quantity='dFoF'),
                                                                 response_significance_threshold=response_significance_threshold,
+                                                                loop_over_cells=True,
+                                                                repetition_keys=['Image-ID','repeat']
                                                                 )
 
-                        neg_evokedStats = epGrating.pre_post_statistics_over_cells(\
+                        neg_evokedStats = epGrating.pre_post_statistics(\
                                                                 neg_stat_test_props,
                                                                 response_args=\
                                                                 dict(quantity='dFoF'),
                                                                 response_significance_threshold=response_significance_threshold,
+                                                                loop_over_cells=True,
+                                                                repetition_keys=['Image-ID','repeat']
                                                                 )
 
                         

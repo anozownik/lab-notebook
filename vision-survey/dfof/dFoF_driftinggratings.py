@@ -1,7 +1,7 @@
 
 import numpy as np
 import os, sys
-sys.path.append('../physion/src') # add src code directory for physion
+sys.path.append('../../physion/src') # add src code directory for physion
 import physion
 import physion.utils.plot_tools as pt
 pt.set_style('ticks')
@@ -29,7 +29,7 @@ dFoF_options = dict(\
     percentile=10,
     roi_to_neuropil_fluo_inclusion_factor=1.,
     neuropil_correction_factor=0.7, 
-    with_computed_neuropil_fact=True)
+    with_computed_neuropil_fact=False)
 
 # PLOT PROPERTIES --- DRIFTING GRATINGS ---
 
@@ -40,7 +40,7 @@ dFoF_options = dict(\
 # TO LOOP OVER NWB FILES WITH VISUAL STIMULUS --- DRIFITING GRATING ---  multisession
 
 folder = os.path.join(os.path.expanduser('~'), 'DATA', 'Adrianna',
-                        'PN_cond-NDNF-CB1_WT-vs-KD', 'NWBs')
+                        'NDNF_cond-CB1_WT-vs-KD', 'NWBs')
 
 DATASET = physion.analysis.read_NWB.scan_folder_for_NWBfiles(folder,
                                         for_protocol='drifting-grating')
@@ -100,8 +100,8 @@ for i, filename in enumerate(DATASET['files']):
     print(data.protocols)
 
     data.build_dFoF(**dFoF_options, verbose=True)
-    data.build_pupil_diameter()
-    data.build_facemotion()
+    #data.build_pupil_diameter()
+    #data.build_facemotion()
     data.build_running_speed()
     
     if 'sgRosa' in data.nwbfile.virus:
@@ -245,6 +245,35 @@ pt.set_common_ylims(AX)
 
 
 #%%
+baselineCond = (epGrating.t>-1.9) & (epGrating.t<0)
+fig, AX = pt.figure(axes=(3,3))
+
+for j, cond in enumerate(['all', 'run', 'still']):
+    for i, c in zip(range(3), epGrating.varied_parameters['contrast']):
+        for k, key, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['grey','darkred']):
+            if len(means['%s-%s' % (cond, key)][i])>1:
+                pt.plot(epGrating.t, 
+                        np.mean(means['%s-%s' % (cond, key)][i], axis=0)-np.mean(means['%s-%s' % (cond, key)][i], axis=0)[baselineCond].mean(),
+                        #sy=sem(means['%s-%s' % (cond, key)][i], axis=0),
+                        color=color, ax=AX[i][j])
+                pt.annotate(AX[i][j],
+                            'N=%i' % len(means['%s-%s' % (cond, key)][i])+k*'\n',
+                            (0,0), #ha='right',
+
+                            color=color, fontsize=6)
+        if i==0:
+             pt.annotate(AX[i][j], cond, (0.5, 1))
+        if j==0:
+             pt.annotate(AX[i][j], 'contrast=%.1f ' % c,
+                         (0,1), ha='right')
+
+        pt.set_plot(AX[i][j], 
+                    xlabel='time (s)' if i==2 else '',
+                    ylabel='$\\Delta$F/F' if j==0 else '')
+#pt.set_common_ylims(AX)
+
+
+#%%
 firgurename='running_'+ neuron + 'drifgrat' +'.svg'
 fig, AX = pt.figure(axes=(3,3))
 
@@ -270,7 +299,7 @@ for j, cond in enumerate(['all', 'run', 'still']):
                     xlabel='time (s)' if i==2 else '',
                     ylabel='speed (cm/s)' if j==0 else '',fontsize=5)
 pt.set_common_ylims(AX)
-plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
+#plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
 
 #%%
 """#build z score per episode - CURRENTLY ON PAUSE

@@ -1,6 +1,6 @@
 import numpy as np
 import os, sys
-sys.path.append('../physion/src') # add src code directory for physion
+sys.path.append('../../physion/src') # add src code directory for physion
 import physion
 import physion.utils.plot_tools as pt
 pt.set_style('ticks')
@@ -106,7 +106,7 @@ for i, filename in enumerate(DATASET['files']):
                         virus = 'sgCnr1'
 
                 # 1) identify visually-responsive cells
-                evokedStats = ep.pre_post_statistics_over_cells(\
+                evokedStats = ep.pre_post_statistics(\
                                                         stat_test_props,
                                                         response_args=\
                                                         dict(quantity='dFoF'),

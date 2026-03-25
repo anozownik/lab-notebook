@@ -1,7 +1,7 @@
 # %%
 import numpy as np
 import os, sys
-sys.path.append('../physion/src') # add src code directory for physion
+sys.path.append('../../physion/src') # add src code directory for physion
 import physion
 import physion.utils.plot_tools as pt
 pt.set_style('manuscript')
@@ -79,8 +79,8 @@ response_args = dict(quantity='dFoF')
 
 summary_stats = []
 
-RUNNING_SPEED_THRESHOLD = 0.1
-NMIN_EPISODES = 1
+RUNNING_SPEED_THRESHOLD = 0.5
+NMIN_EPISODES = 2
 NMIN_ROIS = 3
 
 
@@ -182,32 +182,35 @@ for i,filename in enumerate(DATASET['files']):
 
 
 
-                evokedStats = epGrating.pre_post_statistics_over_cells(\
+                evokedStats = epGrating.pre_post_statistics(\
                                                                 stat_test_props,
                                                                 response_args=\
                                                                 dict(quantity='dFoF'),
                                                                 response_significance_threshold=response_significance_threshold,
+                                                                loop_over_cells=True,
                                                                 )
                 
 
-                pos_evokedStats = epGrating.pre_post_statistics_over_cells(\
+                pos_evokedStats = epGrating.pre_post_statistics(\
                                                                 pos_stat_test_props,
                                                                 response_args=\
                                                                 dict(quantity='dFoF'),
                                                                 response_significance_threshold=response_significance_threshold,
+                                                                loop_over_cells=True,
                                                                 )
 
-                neg_evokedStats = epGrating.pre_post_statistics_over_cells(\
+                neg_evokedStats = epGrating.pre_post_statistics(\
                                                                 neg_stat_test_props,
                                                                 response_args=\
                                                                 dict(quantity='dFoF'),
                                                                 response_significance_threshold=response_significance_threshold,
+                                                                loop_over_cells=True,
                                                                 )
 
                 
-                responsiveROIs = evokedStats['significant'][:,:].flatten()
-                pos_responsiveROIs = pos_evokedStats['significant'][:,:].flatten()
-                neg_responsiveROIs = neg_evokedStats['significant'][:,:].flatten()
+                responsiveROIs = evokedStats['significant'][:].flatten()
+                pos_responsiveROIs = pos_evokedStats['significant'][:].flatten()
+                neg_responsiveROIs = neg_evokedStats['significant'][:].flatten()
                 percentages['%s-c=%.1f' % (virus, contrast)].append(np.sum(responsiveROIs)/len(responsiveROIs)*100)
                 pos_percentages['%s-c=%.1f' % (virus, contrast)].append(np.sum(pos_responsiveROIs)/len(pos_responsiveROIs)*100)
                 neg_percentages['%s-c=%.1f' % (virus, contrast)].append(np.sum(neg_responsiveROIs)/len(neg_responsiveROIs)*100)
@@ -260,26 +263,29 @@ for i,filename in enumerate(DATASET['files']):
 
 
                         # 1) identify visually-responsive cells
-                        evokedStats = epGrating.pre_post_statistics_over_cells(\
+                        evokedStats = epGrating.pre_post_statistics(\
                                                                 stat_test_props,
                                                                 response_args=\
                                                                 dict(quantity='dFoF'),
                                                                 response_significance_threshold=response_significance_threshold,
+                                                                loop_over_cells=True,
                                                                 )
                         
 
-                        pos_evokedStats = epGrating.pre_post_statistics_over_cells(\
+                        pos_evokedStats = epGrating.pre_post_statistics(\
                                                                 pos_stat_test_props,
                                                                 response_args=\
                                                                 dict(quantity='dFoF'),
                                                                 response_significance_threshold=response_significance_threshold,
+                                                                loop_over_cells=True,
                                                                 )
 
-                        neg_evokedStats = epGrating.pre_post_statistics_over_cells(\
+                        neg_evokedStats = epGrating.pre_post_statistics(\
                                                                 neg_stat_test_props,
                                                                 response_args=\
                                                                 dict(quantity='dFoF'),
                                                                 response_significance_threshold=response_significance_threshold,
+                                                                loop_over_cells=True,
                                                                 )
 
                         
@@ -350,7 +356,7 @@ from scipy.stats import sem
 
 fig, AX = pt.figure(axes=(3,3))
 
-NMIN_SESSIONS = 1
+NMIN_SESSIONS = 2
   
 for j, cond in enumerate(['all', 'run', 'still']):
     for i, contrast in zip(range(3), epGrating.varied_parameters['contrast']):
@@ -380,7 +386,72 @@ for j, cond in enumerate(['all', 'run', 'still']):
                     ylabel='$\\Delta$F/F' if j==0 else '')
 pt.set_common_ylims(AX)
 
-plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
+#plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
+
+#%%
+baselineCond = (epGrating.t>-0.19) & (epGrating.t<0)
+
+fig, AX = pt.figure(axes=(3,3))
+
+for j, cond in enumerate(['all', 'run', 'still']):
+    for i, contrast in zip(range(3), epGrating.varied_parameters['contrast']):
+        for k, virus, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['grey','darkred']):
+
+                session_responses = [np.mean(m,axis=(0,1))\
+                        for m in means['%s-%s-c=%.1f' % (virus, cond, contrast)]]
+                
+                if len(session_responses)>=NMIN_SESSIONS:
+                        pt.plot(epGrating.t, 
+                                np.mean(session_responses, axis=0)- np.mean(session_responses,axis=0)[baselineCond].mean(),
+                                #sy=sem(session_responses, axis=0),
+                                color=color, ax=AX[i][j])
+                        
+                pt.annotate(AX[i][j],
+                            'N=%i' % len(session_responses)+k*'\n',
+                            (0,0.6), #ha='right',
+                            color=color, fontsize=6)
+        if i==0:
+             pt.annotate(AX[i][j], cond, (0.5, 1))
+        if j==0:
+             pt.annotate(AX[i][j], 'contrast=%.1f ' % contrast,
+                         (0,1), ha='right')
+
+        pt.set_plot(AX[i][j], 
+                    xlabel='time (s)' if i==2 else '',
+                    ylabel='$\\Delta$F/F' if j==0 else '')
+#pt.set_common_ylims(AX)
+
+
+#%%
+
+baselineCond = (epGrating.t>-1.9) & (epGrating.t<0)
+
+
+for n in range(6):
+        fig,(axs) = plt.subplots(1,2, figsize= (12, 8))
+        n_sessions = np.shape(means['sgRosa-all-c=1.0'][n])
+        mean_over_rois = np.mean(means['sgRosa-all-c=1.0'][n],axis =1)
+        bsl_substract = []
+        for i in range(n_sessions[0]):
+                bsl_mean= np.mean(mean_over_rois[i][baselineCond])
+                bsl_substract.append(mean_over_rois[i]-bsl_mean)
+        #max=max(bsl_substract)
+
+        im_wt = axs[0].pcolormesh(epGrating.t, np.arange(n_sessions[0]), bsl_substract, cmap='magma', vmin= 0, vmax=1.8)
+        plt.colorbar(im_wt)
+
+
+        n_sessions = np.shape(means['sgCnr1-all-c=1.0'][n])
+        mean_over_rois = np.mean(means['sgCnr1-all-c=1.0'][n],axis =1)
+        bsl_substract = []
+        for i in range(n_sessions[0]):
+                bsl_mean= np.mean(mean_over_rois[i][baselineCond])
+                bsl_substract.append(mean_over_rois[i]-bsl_mean)
+
+
+        im_kd = axs[1].pcolormesh(epGrating.t, np.arange(n_sessions[0]), bsl_substract, cmap='magma',vmin= 0,vmax=1.8)
+        plt.colorbar(im_kd)
+pt.show()
 
 
 # %% [markdown]
@@ -420,7 +491,7 @@ for j, cond in enumerate(['all', 'run', 'still']):
                     title = "pos. responses" if j==0 else'')
 pt.set_common_ylims(AX)
 
-plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
+#plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
 
 # %% [markdown]
 # ## Responsive neurons -  NEGATIVE RESPONSES
@@ -459,7 +530,7 @@ for j, cond in enumerate(['all', 'run', 'still']):
                     ylabel='$\\Delta$F/F' if j==0 else '',
                     title = "neg. responses" if j==0 else'')
 pt.set_common_ylims(AX)
-plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
+#plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
 
 
 # %% [markdown]
@@ -485,7 +556,7 @@ for k, virus, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['blue','darkred']):
                         ax=AX[k][i])
                 #pt.annotate(AX[k][i],)
 
-plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
+#plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
 
 # %% [markdown]
 # ## pie charts - SPLIT BY POS AND NEG

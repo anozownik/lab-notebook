@@ -39,7 +39,7 @@ dFoF_options = dict(\
 
 data.build_dFoF(**dFoF_options, verbose=True)
 
-ep = physion.analysis.episodes.build.EpisodeData(data,quantities=['dFoF'], protocol_name ='imaging during spontaneous behavior')
+#ep = physion.analysis.episodes.build.EpisodeData(data,quantities=['dFoF'], protocol_name ='imaging during spontaneous behavior')
 
 # %%
 Matrix = np.corrcoef(data.dFoF)
@@ -67,7 +67,9 @@ pt.set_plot(ax, xlabel='corr. coef.', ylabel='# pairs',
 
 # %%
 
-
+import matplotlib.pyplot as plt
+from scipy.signal import savgol_filter 
+from scipy.stats import zscore
 folder = os.path.join(os.path.expanduser('~'), 'DATA', 'Adrianna', 
                         'PN_cond-NDNF-CB1_WT-vs-KD', 'spontaneous','NWBs')
 
@@ -89,15 +91,16 @@ for i, filename in enumerate(DATASET['files']):
     print(data.protocols)
 
     data.build_dFoF(**dFoF_options, verbose=True)
-    #data.build_running_speed()
+    data.build_running_speed()
+    data.build_pupil_diameter()
     
 
         
 
     if data.nROIs>0:
+        
         """
-
-        ep = physion.analysis.process_NWB.EpisodeData(data, 
+        ep = physion.analysis.episodes.build.EpisodeData(data, 
                                                         quantities=['dFoF', 'running_speed'],
                                                         protocol_name='imaging during spontaneous behavior')
         
@@ -114,8 +117,8 @@ for i, filename in enumerate(DATASET['files']):
                                                                 quantity='running_speed', with_std=False, 
                                                                 color=color,
                                                                 
-                                                                **plot_props)"""
-        
+                                                                **plot_props)
+        """
         if 'cond-NDNF-CB1-wt' in data.nwbfile.virus:
             color = 'grey'
             key = 'sgRosa'
@@ -124,29 +127,67 @@ for i, filename in enumerate(DATASET['files']):
             color = 'darkred'
             key = 'sgCnr1'
             genotype='KD'
+
+    figurepath = '/Users/macbookair/work/Figures/spontaneous/'
+    # build figure with traces aligned to dfof time stamps 
+    time_dfof =[]
+    for i in range(len(data.t_dFoF)):
+        time_dfof.append(data.t_dFoF[i]-data.t_dFoF[0])
+    
+    figurename= data.filename+'_'+genotype+'.svg'
+    fig,axs = plt.subplots(3,1, figsize= (12, 8),sharex=True)
+    Y = savgol_filter(np.mean(data.dFoF,axis=0), 100, 3)
+    Y2 = savgol_filter(data.running_speed, 100, 3)
+
+    pupil_zscore = zscore(data.pupil_diameter)
+    Y3 = savgol_filter(pupil_zscore, 100, 3)
+    axs[0].set_ylim(bottom=-1.25, top=4)
+    axs[0].plot(time_dfof,Y3)
+    axs[0].set_ylabel('pupil z-score')
+    
+    axs[1].set_ylim(bottom=-0.25, top=4)
+    axs[1].plot(data.t_running_speed[300:(300+len(data.t_dFoF))], Y2[300:(300+len(data.t_dFoF))])
+    axs[1].set_ylabel('running speed [cm/s]')
+
+
+    time_dfof =[]
+    for i in range(len(data.t_dFoF)):
+        time_dfof.append(data.t_dFoF[i]-data.t_dFoF[0])
+
+    axs[2].set_ylim(bottom=0, top=3.5)
+    axs[2].plot(time_dfof, Y, color=color)
+    axs[2].set_ylabel('$\\Delta$F/F')
+    axs[2].set_xlabel('Time [s]')
+    
+    #plt.savefig(os.path.join(figurepath+figurename), format='svg')
+    plt.show()
+    
         
-        Matrix = np.corrcoef(data.dFoF)
+    Matrix = np.corrcoef(data.dFoF)
 
 
-        # filter the matrix for unique pairs
-        triu = np.array(np.triu(np.ones(Matrix.shape), k=1),
-                        dtype=bool)
-        
-        Npairs = np.sum(triu.flatten()) # number of unique pairs
+    # filter the matrix for unique pairs
+    triu = np.array(np.triu(np.ones(Matrix.shape), k=1),
+                    dtype=bool)
+    
+    Npairs = np.sum(triu.flatten()) # number of unique pairs
+
+    bar_legend_args={'label':'corr. coeff.',
+                                        'ticks':[-1,0,1],
+                                        'ticks_labels':['-1', '0', '1']}
+    Matrix = np.triu(Matrix, k=1)
+    pt.matrix(Matrix, vmin=-1, vmax=1, colormap='seismic',bar_legend_args=bar_legend_args)
 
 
-        Matrix = np.triu(Matrix, k=1)
-        pt.matrix(Matrix, vmin=0, vmax=1)
 
+    fig, ax = pt.figure()
+    ax.hist(Matrix[triu])
+    pt.set_plot(ax, xlabel='corr. coef.', ylabel='# pairs',
+                title= '%s %.2f $\pm$ %.2f ' % (\
+                        genotype,
+                        np.mean(Matrix[triu]),
+                        stats.sem(Matrix[triu])),
+                        
+                        xlim=[-0.5,1])
 
-
-        fig, ax = pt.figure()
-        ax.hist(Matrix[triu])
-        pt.set_plot(ax, xlabel='corr. coef.', ylabel='# pairs',
-                    title= '%s %.2f $\pm$ %.2f ' % (\
-                            genotype,
-                            np.mean(Matrix[triu]),
-                            stats.sem(Matrix[triu])),
-                            
-                            xlim=[-0.5,1])
 # %%
