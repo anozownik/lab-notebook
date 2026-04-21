@@ -1,653 +1,246 @@
+# %%
 import numpy as np
-import os, sys
+import os, sys, tempfile
+
 sys.path.append('../../physion/src') # add src code directory for physion
+sys.path.append('../../utils') 
+
 import physion
 import physion.utils.plot_tools as pt
 pt.set_style('ticks')
+
+import plots_fcts as pt_fcts
+import params
+import tools
+
 from scipy import stats
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize
+from scipy.stats import sem
+from itertools import product
+import datetime
 
-    
 # %%
 
-# custom dFoF:
-
-from physion.imaging.Calcium import compute_F0
-
-
-dFoF_options = dict(\
-    method_for_F0='sliding_minmax',
-    #method_for_F0='sliding_percentile',
-    #method_for_F0='percentile', #more strict
-    sliding_window= 300,
-    percentile=10,
-    roi_to_neuropil_fluo_inclusion_factor=1.,
-    neuropil_correction_factor=0.7, 
-    with_computed_neuropil_fact=True)
-
-
-
-
 # TO LOOP OVER NWB FILES WITH VISUAL STIMULUS --- DRIFITING GRATING ---  multisession
+pname = 'Natural-Images-4-repeats'
+neuron = 'PN_cond-NDNF-CB1_WT-vs-KD'  # 'PN_cond-NDNF-CB1_WT-vs-KD' or 'NDNF-cond-CB1'
 
 folder = os.path.join(os.path.expanduser('~'), 'DATA', 'Adrianna',
-                        'PN_cond-NDNF-CB1_WT-vs-KD', 'NWBs')
+                        neuron, 'NWBs')
 
 DATASET = physion.analysis.read_NWB.scan_folder_for_NWBfiles(folder,
-                                        for_protocol='Natural-Images-4-repeats')
+                                        for_protocol=pname)
 
+# %% COMPUTATION
 
+viruses = ['sgRosa', 'sgCnr1']
+state_metric = 'speed' # 'speed' or 'pupil' or 'speed & pupil'
+varied_parameter = 'Image-ID'
 
-# STATISTICS PROPERTIES --- DRIFTING GRATINGS ---
-stat_test_props = dict(interval_pre=[-1.,0],                                   
-                       interval_post=[1.,2.],                                   
-                       test='ttest',
-                       sign='both')
+ep_props = dict(quantities=['dFoF', 'running_speed'],
+                prestim_duration=1.5,
+                dt_sampling=params.dt_sampling)
 
-pos_stat_test_props = dict(interval_pre=[-1.,0],                                   
-                       interval_post=[1.,2.],                                   
-                       test='ttest',
-                       sign ='positive')
-response_significance_threshold =0.05
+included_mice = None
+means = None
 
-neg_stat_test_props = dict(interval_pre=[-1.,0],                                   
-                       interval_post=[1.,2.],                                   
-                       test='ttest',
-                       sign ='negative')
+run_means = None
+pos_means, neg_means = None, None
 
-#response_significance_threshold = 0.05
+# INITILIAZE DICTIONARIES TO STORE RESPONSES, PERCENTAGES AND BEHAVIORAL QUANTITIES
+percentages = {v : [] for v in viruses}
+pos_percentages = {v : [] for v in viruses}
+neg_percentages = {v : [] for v in viruses}
 
-# PLOT PROPERTIES --- DRIFTING GRATINGS ---
+# LOOP OVER SESSIONS
 
-plot_props = dict(column_key='Image-ID',
-                  with_annotation=True,
-                  Ybar=0.5, Ybar_label="0.5$\Delta$F/F",
-                  Xbar=0.5, Xbar_label="0.5s",
-                  figsize=(13,1.8))
-
-
-# RESPONSE ARGUMENTS --- DRIFTING GRATINGS ---
-
-
-
-response_args = dict(quantity='dFoF')
-
-summary_stats = []
-
-RUNNING_SPEED_THRESHOLD = 0.5
-NMIN_ROIS = 3
-NMIN_EPISODES = 2
-
-means = {} # 
-for virus in ['sgRosa', 'sgCnr1']:
-      for cond in ['all', 'aroused', 'still']:
-              
-                means['%s-%s' % (virus, cond)] = []
-
-
-run_means = {} # 
-for virus in ['sgRosa', 'sgCnr1']:
-      for cond in ['all', 'aroused', 'still']:
-              
-               run_means['%s-%s' % (virus, cond)] = []
-
-pupil_means = {} # 
-for virus in ['sgRosa', 'sgCnr1']:
-      for cond in ['all', 'aroused', 'still']:
-              
-               pupil_means['%s-%s' % (virus, cond)] = []
-
-
-
-pos_means = {} # 
-for virus in ['sgRosa', 'sgCnr1']:
-      for cond in ['all', 'aroused', 'still']:
-              pos_means['%s-%s' % (virus, cond)] = []
-
-neg_means = {} # 
-for virus in ['sgRosa', 'sgCnr1']:
-      for cond in ['all', 'aroused', 'still']:
-              
-                neg_means['%s-%s' % (virus, cond)] = []
-
-
-
-percentages = {}
-for virus in ['sgRosa', 'sgCnr1']:
-        percentages['%s' % virus] = []
-
-pos_percentages = {}
-for virus in ['sgRosa', 'sgCnr1']:
-                pos_percentages['%s' % virus] = []
-
-
-neg_percentages = {}
-for virus in ['sgRosa', 'sgCnr1']:
-      neg_percentages['%s' % virus] = []
-
-
-for i,filename in enumerate(DATASET['files']):
+for i, filename in enumerate(DATASET['files']):
     
     data = physion.analysis.read_NWB.Data(filename,
                                     verbose=False)
     
-    print(i+1,'--', filename, '--', data.nROIs)
-    # print(data.protocols)
+    print(i+1, '--', filename, '--', data.nROIs)
 
-    data.build_dFoF(**dFoF_options, verbose=True)
-    data.build_pupil_diameter()
-    data.build_facemotion()
-    data.build_running_speed()
+    # determine virus        
+    if 'sgRosa' in data.nwbfile.virus:
+        virus = 'sgRosa'
+    elif 'sgCnr1' in data.nwbfile.virus:
+        virus = 'sgCnr1'
+    else :
+        raise ValueError("Virus not identified in session %s" % filename)\
     
-    if data.nROIs>0 and hasattr(data, 'pupil_diameter'):
+    #date condition
+    #if data.nwbfile.session_start_time.date() < datetime.date(2026, 4, 1) and virus == 'sgRosa':
+    #if data.nwbfile.session_start_time.date() > datetime.date(2026, 4, 1):
+    if True:
 
-        ep = physion.analysis.episodes.build.EpisodeData(data, 
-                                                        quantities=['dFoF', 'running_speed','pupil_diameter'],
-                                                        protocol_name='Natural-Images-4-repeats')
+        if 'dFoF' in ep_props['quantities']:
+            data.build_dFoF(**params.dFoF_options, verbose=True)
+                
+        if data.nROIs>0:
+
+            if 'pupil_diameter' in ep_props['quantities']:
+                data.build_pupil_diameter()
+            if 'facemotion' in ep_props['quantities']:
+                data.build_facemotion()
+            if 'running_speed' in ep_props['quantities']: 
+                data.build_running_speed()
+
+            # Build episode data
+            ep = physion.analysis.episodes.build.EpisodeData(data, 
+                                                            **ep_props,
+                                                            protocol_name=pname)
         
-        if 'Image-ID' in ep.varied_parameters:
-               
-                # determine virus        
-                if 'sgRosa' in data.nwbfile.virus:
-                        virus = 'sgRosa'
-                elif 'sgCnr1':
-                        virus = 'sgCnr1'
+            if varied_parameter in ep.varied_parameters:
 
-                # 1) identify visually-responsive cells
+                ######### 1) Define behavioral states #########
+                states_names, states_filters = tools.define_trials_arousal_state(ep, cond=state_metric)
+
+                ######### 2) identify visually-responsive cells #########
+
                 evokedStats = ep.pre_post_statistics(\
-                                                        stat_test_props,
-                                                        response_args=\
-                                                        dict(quantity='dFoF'),
-                                                        response_significance_threshold=response_significance_threshold,
-                                                        loop_over_cells=True,
-                                                        repetition_keys=['Image-ID','repeat']
-                                                        )
+                                                    params.stat_test_props,
+                                                    response_args=params.response_args,
+                                                    response_significance_threshold=params.response_significance_threshold,
+                                                    loop_over_cells=True,
+                                                    repetition_keys=[varied_parameter, 'repeat'],
+                                                    verbose=False
+                                                    )
+                
                 pos_evokedStats = ep.pre_post_statistics(\
-                                                        pos_stat_test_props,
-                                                        response_args=\
-                                                        dict(quantity='dFoF'),
-                                                        response_significance_threshold=response_significance_threshold,
+                                                        params.pos_stat_test_props,
+                                                        response_args=params.response_args,
+                                                        response_significance_threshold=params.response_significance_threshold,
                                                         loop_over_cells=True,
-                                                        repetition_keys=['Image-ID','repeat']
+                                                        repetition_keys=[varied_parameter, 'repeat'],
+                                                        verbose=False
                                                         )
-
+                
                 neg_evokedStats = ep.pre_post_statistics(\
-                                                        neg_stat_test_props,
-                                                        response_args=\
-                                                        dict(quantity='dFoF'),
-                                                        response_significance_threshold=response_significance_threshold,
+                                                        params.neg_stat_test_props,
+                                                        response_args=params.response_args,
+                                                        response_significance_threshold=params.response_significance_threshold,
                                                         loop_over_cells=True,
-                                                        repetition_keys=['Image-ID','repeat']
+                                                        repetition_keys=[varied_parameter, 'repeat'],
+                                                        verbose=False
                                                         )
 
+                # find responsive ROIs for this contrast (from summary stats)
+                percentages[virus].append(np.sum(evokedStats['significant'], axis=0)/evokedStats['significant'].shape[0]*100)
+                pos_percentages[virus].append(np.sum(pos_evokedStats['significant'], axis=0)/pos_evokedStats['significant'].shape[0]*100)
+                neg_percentages[virus].append(np.sum(neg_evokedStats['significant'], axis=0)/neg_evokedStats['significant'].shape[0]*100)
 
-                
-                # 2) split rest / run
-                withinEpisode = (ep.t>0) & (ep.t<ep.time_duration[0]) # 2 conditions: episode must have values over zero and ???
+                ######### 3) Fill dictionnaries with responsive neurons data #########
 
-                preEpisode = 0
-                Ep_run_speed = ep.running_speed[:,withinEpisode].mean(axis=1)
-                run = np.mean(ep.running_speed[:,withinEpisode], axis=1) > RUNNING_SPEED_THRESHOLD
-                Ep_pupil_size = ep.pupil_diameter[:,withinEpisode].mean(axis=1)
-                pupil_bins = np.linspace(Ep_pupil_size.min(), Ep_pupil_size.max(), 15)
-                # binning the data according to pupil level for analysis:
-                
+                # INITILIAZE DICTIONARIES TO STORE RESPONSES AND BEHAVIORAL QUANTITIES
+                if included_mice is None:
+                    vparam_values = ep.varied_parameters[varied_parameter]
+                    included_mice  = {f"{v}-{cond}" : [] for v, cond in product(viruses, states_names)}
+                    means = {f"{v}-{cond}" : [] for v, cond in product(viruses, states_names)}
+                    run_means = {f"{v}-{cond}" : [] for v, cond in product(viruses, states_names)}
+                    pos_means = {f"{v}-{cond}" : [] for v, cond in product(viruses, states_names)}
+                    neg_means = {f"{v}-{cond}" : [] for v, cond in product(viruses, states_names)}
 
-                bins = np.digitize(Ep_pupil_size, pupil_bins)
-                speed_binned, sb_std = np.zeros(len(pupil_bins)), np.zeros(len(pupil_bins))
+                for state, state_filter in zip(states_names, states_filters):
 
-                for b in np.unique(bins):
-                        speed_binned[b-1] = np.mean(Ep_run_speed[bins==b])
-                        sb_std[b-1] = np.std(Ep_run_speed[bins==b])
-                
-                def func(t, X):
-                        """ threshold-linear function """
-                        return np.array([X[1]*(tt-X[0]) if tt>X[0] else 0 for tt in t])
-    
-                def to_minimize(X):
-                        return np.sum((speed_binned-func(pupil_bins, X))**2)
-                
-                res = minimize(to_minimize,[pupil_bins.mean(), 1])
-                
-                pupil_threshold = res.x[0]
-
-                pupil = np.mean(ep.pupil_diameter[:,withinEpisode], axis=1) > pupil_threshold
-
-                aroused = pupil
-                
-                responsiveROIs = evokedStats['significant'].flatten()
-                pos_responsiveROIs = pos_evokedStats['significant'].flatten()
-                neg_responsiveROIs = neg_evokedStats['significant'].flatten()
-                responsive = np.sum(responsiveROIs)/len(responsiveROIs)*100
-                percentages['%s' % virus].append(responsive)
-                pos_percentages['%s' % virus].append(np.sum(pos_responsiveROIs)/len(pos_responsiveROIs)*100)
-                neg_percentages['%s' % virus].append(np.sum(neg_responsiveROIs)/len(neg_responsiveROIs)*100)
-               
-                                                   
-                
-                
+                    if (np.sum(evokedStats['significant'], axis=0)>=params.NMIN_ROIS) and \
+                            (np.sum(state_filter) >= params.NMIN_EPISODES):
                         
-                #image_cond = (getattr(ep, 'Image-ID')==img_id)
+                        print("cond: %s-%s -> included %i ROIs and %i episodes" % (virus,state, np.sum(evokedStats['significant']), np.sum(state_filter)))
+                        print("    -> %i ROIs out of %i ROIs are responsive" % (np.sum(evokedStats['significant'], axis=0), evokedStats['significant'].shape[0]))
+                        
+                        means[f"{virus}-{state}"].append(
+                            ep.dFoF[state_filter][:, evokedStats['significant'], :])
+                        
+                        pos_means[f"{virus}-{state}"].append(
+                            ep.dFoF[state_filter][:, pos_evokedStats['significant'], :])
+                                                
+                        neg_means[f"{virus}-{state}"].append(
+                            ep.dFoF[state_filter][:, neg_evokedStats['significant'], :])
+                        
+                        included_mice[f"{virus}-{state}"].append(DATASET['subjects'][i])
 
-        #
-                #print("for session: %s" % filename)
-                for cond, filter in zip(['all', 'aroused', 'still'],
-                                        [aroused|~aroused, aroused, ~aroused]):
+                        run_means[f"{virus}-{state}"].append(ep.running_speed[state_filter, :])
                         
-                        if (np.sum(responsiveROIs)>=NMIN_ROIS) and \
-                                (np.sum( filter)>= NMIN_EPISODES):
-                                print("cond: %s-%s -> included %i ROIs and %i episodes" % (virus,cond, np.sum(responsiveROIs), np.sum( filter)))
-                                print("cond: %s-%s -> %i ROIs out of %i ROIs are responsive" % (cond,virus, np.sum(responsiveROIs), len(responsiveROIs)))
-                                
-                                means['%s-%s' % (virus, cond)].append(
-                                        ep.dFoF[filter, :, :][:, responsiveROIs, :])
-                                
-                                run_means['%s-%s' % (virus, cond)].append(
-                                        ep.running_speed[filter, :])
-                                pupil_means['%s-%s' % (virus, cond)].append(
-                                        ep.pupil_diameter[filter, :])
-                                
-                                pos_means['%s-%s' % (virus, cond)].append(
-                                        ep.dFoF[ filter, :, :][:, pos_responsiveROIs, :])
-                                
-                                neg_means['%s-%s' % (virus, cond)].append(
-                                        ep.dFoF[filter, :, :][:, neg_responsiveROIs, :])
-                                
-                                
-                                
-                        
-                                
-                        else:
-                                print("cond: %s -> [XX] response not included (%i ROIs, %i eps)" % (cond, np.sum(responsiveROIs), np.sum( filter)))
+                    else:
+                        print("cond: %s-%s -> [XX] response not included (%i ROIs, %i eps)" % (virus,state, np.sum(evokedStats['significant']), np.sum(state_filter)))
+            else :
+                print("%s is not a valid varied parameter" % varied_parameter)
+
+        else :
+            print("session %s has no ROIs, excluded from analysis" % filename)
+
+    print('')
                 
+means = tools.remove_empty_sessions(means)
+pos_means = tools.remove_empty_sessions(pos_means)
+neg_means = tools.remove_empty_sessions(neg_means)
 
-# now "means" is a list (over sessions) 
-#    of responses of shape (episodes, responsiveROIs, time)
-
-#%%
-# 
-if 'PN_cond-NDNF-CB1_WT-vs-KD' in folder:
-       neuron= 'PN-cond-NDNF-CB1'
-elif 'NDNF-cond-CB1_WT-vs-KD':
-       neuron= 'NDNF-cond-CB1'
+#%% Averaged dF/F0 over responsive ROIs and over episodes across virus and behavioral states (std over sessions)
 
 firgurename = 'dfof_beh_mod_all_natimg'+ neuron + '.svg'
 figurepath = '/Users/macbookair/work/Figures/Natural_images/'
 
-from scipy.stats import sem
+fig, AX = pt_fcts.plot_average_response(ep.t, means, 
+                                        viruses, states_names, [], varied_parameter, 
+                                        included_mice, params.NMIN_SESSIONS)
+#plt.savefig(os.path.join(figurepath+firgurename), transparent=True, format='svg')
 
-fig, AX = pt.figure(axes=(3,1))
-
-NMIN_SESSIONS = 0
-
-for j, cond in enumerate(['all', 'aroused', 'still']):
-    
-        for k, virus, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['grey','darkred']):
-
-
-                session_responses = [np.mean(m,axis=(0,1))\
-                        for m in means['%s-%s' % (virus, cond)]]
-
-                if len(means['%s-%s' % (virus,cond)])>1:
-                        #print(means['%s-%s' % (virus,cond)])
-                        #print(virus,cond)
-                        #print(session_responses)
-                        pt.plot(ep.t, 
-                                np.mean(session_responses,axis=0),
-                                sy=sem(session_responses,axis=0),
-                                color=color, ax=AX[j])
-                        
-                pt.annotate(AX[j],
-                                'N=%i' % len(means['%s-%s'%(virus,cond)])+k*'\n',
-                                (0.2,0.6), ha='right',
-                                color=color, fontsize=6)
-        
-                pt.annotate(AX[j], cond, (0.5, 1))
-     
-
-        pt.set_plot(AX[j], 
-                xlabel='time (s)',
-                ylabel='$\\Delta$F/F' if j==0 else '')
-pt.set_common_ylims(AX)   
-
-#plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
-#%%
-baselineCond = (ep.t>-1.9) & (ep.t<0)
-fig,(axs) = plt.subplots(1,2, figsize= (12, 8))
-
-n_sessions = np.shape(means['sgRosa-all'][0])
-mean_over_rois = np.mean(means['sgRosa-all'][0],axis =1)
-mean_over_rois_bslsubstrct = np.mean(means['sgRosa-all'][0],axis =1)-np.mean(means['sgRosa-all'][0],axis =1)[baselineCond]
-
-
-im_wt = axs[0].pcolormesh(ep.t, np.arange(n_sessions[0]), mean_over_rois, cmap='magma')
-plt.colorbar(im_wt)
-
-
-n_sessions = np.shape(means['sgCnr1-all'][0])
-mean_over_rois = np.mean(means['sgCnr1-all'][0],axis =1)
-im_kd = axs[1].pcolormesh(ep.t, np.arange(n_sessions[0]), mean_over_rois, cmap='magma')
-plt.colorbar(im_kd)
-#%%
-
-baselineCond = (ep.t>-1.9) & (ep.t<0)
-
-
-for n in range(5):
-        fig,(axs) = plt.subplots(1,2, figsize= (12, 8))
-        n_sessions = np.shape(means['sgRosa-all'][n])
-        mean_over_rois = np.mean(means['sgRosa-all'][n],axis =1)
-        bsl_substract = []
-        for i in range(n_sessions[0]):
-                bsl_mean= np.mean(mean_over_rois[i][baselineCond])
-                bsl_substract.append(mean_over_rois[i]-bsl_mean)
-        #max=max(bsl_substract)
-
-        im_wt = axs[0].pcolormesh(ep.t, np.arange(n_sessions[0]), bsl_substract, cmap='magma', vmin= 0)
-        plt.colorbar(im_wt)
-
-
-        n_sessions = np.shape(means['sgCnr1-all'][n])
-        mean_over_rois = np.mean(means['sgCnr1-all'][n],axis =1)
-        bsl_substract = []
-        for i in range(50):
-                bsl_mean= np.mean(mean_over_rois[i][baselineCond])
-                bsl_substract.append(mean_over_rois[i]-bsl_mean)
-
-
-        im_kd = axs[1].pcolormesh(ep.t, np.arange(n_sessions[0]), bsl_substract, cmap='magma',vmin= 0)
-        plt.colorbar(im_kd)
-pt.show()
-
-
-
-
-
-#%%
+#%% Averaged dF/F0 with baseline substracted over responsive ROIs and over episodes across virus and behavioral states (std over sessions)
 baselineCond = (ep.t>-0.1) & (ep.t<0)
 
-fig, AX = pt.figure(axes=(3,1))
+fig, AX = pt_fcts.plot_average_response(ep.t, means, 
+                                        viruses, states_names, [], varied_parameter, 
+                                        included_mice, params.NMIN_SESSIONS, 
+                                        baselineSubtraction=True, baselineCond=baselineCond)
 
-NMIN_SESSIONS = 0
+#%% Pie chart of responsive neurons
 
-for j, cond in enumerate(['all', 'aroused', 'still']):
-    
-        for k, virus, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['grey','darkred']):
-
-                session_responses = []
-                for m in means['%s-%s' % (virus, cond)]:
-                        current_mean = np.mean(m,axis=(0,1))
-                        current_mean_centered = current_mean - current_mean[baselineCond].mean()
-                        session_responses.append(current_mean_centered)
-                
-                ##session_responses = [np.mean(m,axis=(0,1))\
-                #        for m in means['%s-%s' % (virus, cond)]]
-                
-                
-
-                if len(means['%s-%s' % (virus,cond)])>1:
-                        #print(means['%s-%s' % (virus,cond)])
-                        #print(virus,cond)
-                        #print(session_responses)
-                        pt.plot(ep.t, 
-                                np.mean(session_responses,axis=0),
-                                sy=sem(session_responses,axis=0),
-                                color=color, ax=AX[j])
-                        
-                pt.annotate(AX[j],
-                                'N=%i' % len(means['%s-%s'%(virus,cond)])+k*'\n',
-                                (0.2,0.6), ha='right',
-                                color=color, fontsize=6)
-        
-                pt.annotate(AX[j], cond, (0.5, 1))
-     
-
-        pt.set_plot(AX[j], 
-                xlabel='time (s)',
-                ylabel='$\\Delta$F/F' if j==0 else '')
-pt.set_common_ylims(AX)   
-
-#%%
-
-baselineCond = (ep.t>-0.1) & (ep.t<0)
-
-fig, AX = pt.figure(axes=(3,1))
-
-NMIN_SESSIONS = 0
-
-for j, cond in enumerate(['all', 'aroused', 'still']):
-    
-        for k, virus, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['grey','darkred']):
-
-                session_responses = [np.mean(m,axis=(0,1))\
-                        for m in means['%s-%s' % (virus, cond)]]
-                
-                
-
-                if len(means['%s-%s' % (virus,cond)])>1:
-                        #print(means['%s-%s' % (virus,cond)])
-                        #print(virus,cond)
-                        #print(session_responses)
-                        pt.plot(ep.t, 
-                                np.mean(session_responses,axis=0) - np.mean(session_responses,axis=0)[baselineCond].mean(),
-                                sy=sem(session_responses,axis=0),
-                                color=color, ax=AX[j])
-                        
-                pt.annotate(AX[j],
-                                'N=%i' % len(means['%s-%s'%(virus,cond)])+k*'\n',
-                                (0.2,0.6), ha='right',
-                                color=color, fontsize=6)
-        
-                pt.annotate(AX[j], cond, (0.5, 1))
-     
-
-        pt.set_plot(AX[j], 
-                xlabel='time (s)',
-                ylabel='$\\Delta$F/F' if j==0 else '')
-pt.set_common_ylims(AX)   
-
-#%%
-
-fig, AX = pt.figure(axes=(3,1))
-
-NMIN_SESSIONS = 0
-
-for j, cond in enumerate(['all', 'aroused', 'still']):
-    
-        for k, virus, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['grey','darkred']):
-
-
-                session_responses = [np.mean(m,axis=(0))\
-                        for m in run_means['%s-%s' % (virus, cond)]]
-
-                if len(run_means['%s-%s' % (virus,cond)])>1:
-                        #print(means['%s-%s' % (virus,cond)])
-                        #print(virus,cond)
-                        #print(session_responses)
-                        pt.plot(ep.t, 
-                                np.mean(session_responses,axis=0),
-                                sy=sem(session_responses,axis=0),
-                                color=color, ax=AX[j])
-                        
-                pt.annotate(AX[j],
-                                'N=%i' % len(run_means['%s-%s'%(virus,cond)])+k*'\n',
-                                (0.2,0.6), ha='right',
-                                color=color, fontsize=6)
-        
-                pt.annotate(AX[j], cond, (0.5, 1))
-     
-
-        pt.set_plot(AX[j], 
-                xlabel='time (s)',
-                ylabel='speed(cm/s)' if j==0 else '')
-pt.set_common_ylims(AX)   
-
-#plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
-
-#%%
-
-fig, AX = pt.figure(axes=(3,1))
-
-NMIN_SESSIONS = 0
-
-for j, cond in enumerate(['all', 'aroused', 'still']):
-    
-        for k, virus, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['grey','darkred']):
-
-
-                session_responses = [np.mean(m,axis=(0))\
-                        for m in pupil_means['%s-%s' % (virus, cond)]]
-
-                if len(pupil_means['%s-%s' % (virus,cond)])>1:
-                        #print(means['%s-%s' % (virus,cond)])
-                        #print(virus,cond)
-                        #print(session_responses)
-                        pt.plot(ep.t, 
-                                np.mean(session_responses,axis=0),
-                                sy=sem(session_responses,axis=0),
-                                color=color, ax=AX[j])
-                        
-                pt.annotate(AX[j],
-                                'N=%i' % len(run_means['%s-%s'%(virus,cond)])+k*'\n',
-                                (0.2,0.6), ha='right',
-                                color=color, fontsize=6)
-        
-                pt.annotate(AX[j], cond, (0.5, 1))
-     
-
-        pt.set_plot(AX[j], 
-                xlabel='time (s)',
-                ylabel='pupil_diameter' if j==0 else '')
-pt.set_common_ylims(AX)   
-
-   
-   
-
-# %%
-fig, AX = pt.figure(axes=(2,1))
 firgurename = 'pie_all_natimg'+ neuron + '.svg'
+fig, AX = pt_fcts.pie_chart_responsive_neurons(percentages, viruses, [])
+#plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
 
-NMIN_SESSIONS = 2
+#%% POSITIVE RESPONSES: Averaged dF/F0 with baseline substracted over responsive ROIs and over episodes across virus and behavioral states (std over sessions)
+baselineCond = (ep.t>-0.1) & (ep.t<0)
 
-for k, virus, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['blue','darkred']):
-        
-        
-        perc_resp_ROI = np.mean(percentages['%s' % virus],axis=0)
-        rest = 100-perc_resp_ROI
-        print(perc_resp_ROI,'%s' % virus)
-        pt.pie(data=[perc_resp_ROI,rest],
-                COLORS=[color,'grey'],
-                ext_labels = ['resp.','non-resp.'],
-                
-                pie_labels = ['%.1f'%perc_resp_ROI,'%.1f'%rest],
-                title = '%s' % virus,
-                ax=AX[k])
-                #pt.annotate(AX[k][i],)
-plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
-                                
-# %%
-# %% [markdown]
-# ## Responsive neurons -  POSITIVE RESPONSES
-#%%
 firgurename = 'dfof_beh_mod_onlypos_natimg'+ neuron + '.svg'
 figurepath = '/Users/macbookair/work/Figures/Natural_images/'
 
+fig, AX = pt_fcts.plot_average_response(ep.t, pos_means, 
+                                        viruses, states_names, [], varied_parameter, 
+                                        included_mice, params.NMIN_SESSIONS, 
+                                        baselineSubtraction=True, baselineCond=baselineCond)
+#plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
 
-fig, AX = pt.figure(axes=(3,1))
-
-NMIN_SESSIONS = 1
-  
-for j, cond in enumerate(['all', 'aroused', 'still']):
-   
-        for k, virus, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['grey','darkred']):
-
-                session_responses = [np.mean(m,axis=(0,1))\
-                        for m in pos_means['%s-%s' % (virus, cond)]]
-                
-                if len(session_responses)>=NMIN_SESSIONS:
-                        pt.plot(ep.t, 
-                                np.mean(session_responses, axis=0),
-                                #sy=sem(session_responses, axis=0),
-                                color=color, ax=AX[j])
-                        
-                pt.annotate(AX[j],
-                                'N=%i' % len(means['%s-%s'%(virus,cond)])+k*'\n',
-                                (0.2,0.6), ha='right',
-                                color=color, fontsize=6)
-        
-                pt.annotate(AX[j], cond, (0.5, 1))
-     
-
-        pt.set_plot(AX[j], 
-                xlabel='time (s)',
-                ylabel='$\\Delta$F/F' if j==0 else '',
-                title= 'pos. resp.' if j==0 else '')
-pt.set_common_ylims(AX)
-
-plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
-
-# %% [markdown]
-# ## Responsive neurons -  NEGATIVE RESPONSES
-#%%
+#%% NEGATIVE RESPONSES: Averaged dF/F0 with baseline substracted over responsive ROIs and over episodes across virus and behavioral states (std over sessions)
 
 firgurename = 'dfof_beh_mod_onlyneg_natimg_'+ neuron + '.svg'
-fig, AX = pt.figure(axes=(3,1))
 
-NMIN_SESSIONS = 0
-  
-for j, cond in enumerate(['all', 'aroused', 'still']):
-   
-        for k, virus, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['grey','darkred']):
-
-                session_responses = [np.mean(m,axis=(0,1))\
-                        for m in neg_means['%s-%s' % (virus, cond)]]
-                
-                if len(session_responses)>=NMIN_SESSIONS:
-                        pt.plot(ep.t, 
-                                np.mean(session_responses, axis=0),
-                                sy=sem(session_responses, axis=0),
-                                color=color, ax=AX[j])
-                        
-                pt.annotate(AX[j],
-                                'N=%i' % len(means['%s-%s'%(virus,cond)])+k*'\n',
-                                (0.2,0.6), ha='right',
-                                color=color, fontsize=6)
-        
-                pt.annotate(AX[j], cond, (0.5, 1))
-     
-
-        pt.set_plot(AX[j], 
-                xlabel='time (s)',
-                ylabel='$\\Delta$F/F' if j==0 else '',
-                title= 'neg. resp.' if j==0 else '')
-pt.set_common_ylims(AX)
-
-plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
-
-#%%
+fig, AX = pt_fcts.plot_average_response(ep.t, neg_means, 
+                                        viruses, states_names, [], varied_parameter, 
+                                        included_mice, params.NMIN_SESSIONS)
+#plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
+#%% Pie chart of responsive neurons separated by positive and negative responses
 firgurename = 'pie_resp_neg_natimg_'+ neuron + '.svg'
-fig, AX = pt.figure(axes=(2,1))
 
-NMIN_SESSIONS = 1
+fig, AX = pt_fcts.pie_chart_responsive_neurons_pos_neg(pos_percentages, neg_percentages, viruses, [])
+#plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
 
-for k, virus, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['darkgrey','red']):
-        
-        
-                perc_pos_resp_ROI = np.mean(pos_percentages['%s' % (virus)],axis=0)
-                perc_neg_resp_ROI = np.mean(neg_percentages['%s' % (virus)],axis=0)
-                perc_resp_ROI = perc_neg_resp_ROI + perc_pos_resp_ROI
-                rest = 100-perc_resp_ROI
-                print(perc_resp_ROI,'%s' % (virus))
-                pt.pie(data=[perc_pos_resp_ROI,perc_neg_resp_ROI,rest],
-                        COLORS=[color,'blue','lightgrey'],
-                        #ext_labels = ['pos','neg','non-resp.'],
-                        #ext_labels_distance=1.5,
-                        pie_labels_distance=1,
-                        
-                        pie_labels = ['%.1f'%perc_pos_resp_ROI,'%.1f'%perc_neg_resp_ROI,'%.1f'%rest],
-                        title = '%s' % (virus),
-                        ax=AX[k])
-                #pt.annotate(AX[k][i],)
-plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
-# %%
+#%% Speed across virus and behavioral states
+
+fig, AX = pt_fcts.plot_average_behavior(ep.t, run_means, viruses, states_names, params.NMIN_SESSIONS, ylabel='speed(cm/s)')
+
+
+#%% Rastermap session k: averaged dF/F0 over responsive ROIs per episode across virus 
+cond = 'all' #behavioral condition to plot
+session_id = {'sgRosa' : 0, 'sgCnr1': 0} #session index to plot
+
+fig, AX = pt_fcts.rastermap_session(session_id, ep, means, viruses, state_cond=cond)
+
+#%% Rastermap session k: averaged dF/F0 (baseline substracted) over responsive ROIs per episode across virus
+cond = 'all' #behavioral condition to plot
+baselineCond = (ep.t>-1.9) & (ep.t<0)
+session_id = {'sgRosa' : 0, 'sgCnr1': 0} #session index to plot
+
+fig, AX = pt_fcts.rastermap_session(session_id, ep, means, viruses, state_cond=cond, baselineSubtraction=True, baselineCond=baselineCond)

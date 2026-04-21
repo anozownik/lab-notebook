@@ -177,7 +177,7 @@ def pie_chart_responsive_neurons(percentages, viruses, varied_parameter=[], save
 
 def pie_chart_responsive_neurons_no_vparam(percentages, viruses):
 
-    fig, AX = pt.figure(axes=(len(viruses),1))
+    fig, AX = pt.figure(axes=(1,len(viruses)))
 
     if len(viruses) == 1:
         AX = np.array([AX])
@@ -199,10 +199,10 @@ def pie_chart_responsive_neurons_no_vparam(percentages, viruses):
 
 def pie_chart_responsive_neurons_vparam(percentages, viruses, varied_parameter):
 
-    fig, AX = pt.figure(axes=(len(varied_parameter), len(viruses)))
+    fig, AX = pt.figure(axes=(len(viruses), len(varied_parameter)))
 
     if len(viruses) == 1:
-        AX = np.reshape(AX, (1, -1))
+        AX = np.reshape(AX, (-1, 1))
 
     for k, virus in enumerate(viruses):
 
@@ -218,7 +218,7 @@ def pie_chart_responsive_neurons_vparam(percentages, viruses, varied_parameter):
                 ext_labels = ['resp.', 'non-resp.'],
                 pie_labels = ['%.1f'%perc_resp_ROI[i], '%.1f'%rest],
                 title = '%s-%.1f' % (virus, vparam),
-                ax=AX[k][i])
+                ax=AX[i][k])
         
     return fig, AX
 
@@ -262,7 +262,10 @@ def pie_chart_responsive_neurons_pos_neg_no_vparam(pos_percentages, neg_percenta
 
 def pie_chart_responsive_neurons_pos_neg_vparam(pos_percentages, neg_percentages, viruses, varied_parameter):
 
-    fig, AX = pt.figure(axes=(len(varied_parameter), len(viruses)))
+    fig, AX = pt.figure(axes=(len(viruses), len(varied_parameter)))
+
+    if len(viruses) == 1:
+        AX = np.reshape(AX, (-1, 1))
 
     for k, virus in enumerate(viruses):
 
@@ -283,6 +286,93 @@ def pie_chart_responsive_neurons_pos_neg_vparam(pos_percentages, neg_percentages
                     
                     pie_labels = ['%.1f'%perc_pos_resp_ROI[i], '%.1f'%perc_neg_resp_ROI[i], '%.1f'%rest],
                     title = '%s-%.1f' % (virus, vparam),
-                    ax=AX[k][i])
+                    ax=AX[i][k])
         
+    return fig, AX
+
+def plot_average_behavior(t, behaviors, viruses, states, 
+                          nmin_sessions=1,
+                          annotation_props=dict(xy=(0.05,1), ha='left', fontsize=5),
+                          ylabel='',
+                          savepath=None):
+
+    fig, AX = pt.figure(axes=(len(states), 1))
+
+    for j, state in enumerate(states):
+        for k, virus in enumerate(viruses):
+
+            key = f'{virus}-{state}'
+
+            session_responses = np.array([np.mean(b, axis=(0)) for b in behaviors[key]])
+            
+            nb_eps = np.array([b.shape[0] for b in behaviors[key]])
+
+            if np.shape(session_responses)[0] >= nmin_sessions :
+
+                if np.shape(session_responses)[0] == 1 :
+                    pt.plot(t, session_responses[0],
+                            color=color_virus[virus], ax=AX[j])
+                else :
+                    pt.plot(t, np.mean(session_responses,axis=0),
+                            sy=sem(session_responses,axis=0),
+                            color=color_virus[virus], ax=AX[j])
+            
+            if len(behaviors[key]) > 0:
+                nb_eps = np.array([b.shape[0] for b in behaviors[key]])
+
+                pt.annotate(AX[j],
+                            'N=%i ( %i eps)' % (len(behaviors[key]), nb_eps.sum())
+                                                            +k*'\n',
+                                                            
+                            color=color_virus[virus], **annotation_props)          
+            else :
+                pt.annotate(AX[j], 'N=0' +k*'\n', color=color_virus[virus], **annotation_props)
+    
+            pt.annotate(AX[j], state, (0.5, 1.3), ha='center') 
+        
+        pt.set_plot(AX[j], xlabel='time (s)', ylabel=ylabel if j==0 else '')
+    
+    pt.set_common_ylims(AX)
+
+    if savepath is not None:
+        plt.savefig(os.path.join(savepath), transparent=True, format='svg')
+
+    return fig, AX
+
+def rastermap_session(session_id, ep, responses, viruses,
+                      baselineSubtraction=False, baselineCond=None,
+                      state_cond='all', 
+                      savepath=None):
+    
+    responses_over_rois = []
+
+    for i, virus in enumerate(viruses):
+
+        if session_id[virus] >= len(responses[f'{virus}-{state_cond}']):
+            raise Exception(f"Session {session_id[virus]} does not exist for {virus}-{state_cond}. Must be below {len(responses[f'{virus}-{state_cond}'])} ")
+
+        if baselineSubtraction :
+            responses_over_rois.append(np.subtract(np.mean(responses[f'{virus}-{state_cond}'][session_id[virus]], axis=1).T, 
+                                                   np.mean(responses[f'{virus}-{state_cond}'][session_id[virus]][:, :, baselineCond], axis=(1,2))).T)
+        else :
+            responses_over_rois.append(np.mean(responses[f'{virus}-{state_cond}'][session_id[virus]], axis=1))
+
+    responses_over_rois = np.array(responses_over_rois)
+
+    vmin = np.min(responses_over_rois)
+    vmax = np.max(responses_over_rois)
+
+    fig, AX = plt.subplots(1, len(viruses), figsize=(8, 5))
+
+    for i, virus in enumerate(viruses):
+
+        im = AX[i].pcolormesh(ep.t, np.arange(responses[f'{virus}-{state_cond}'][session_id[virus]].shape[0]), 
+                              responses_over_rois[i], vmin=vmin, vmax=vmax, cmap='magma')
+        AX[i].set_title(f'{virus}-{state_cond}')
+
+    fig.colorbar(im)
+
+    if savepath is not None:
+        plt.savefig(os.path.join(savepath), transparent=True, format='svg')
+
     return fig, AX

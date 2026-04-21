@@ -92,81 +92,84 @@ for i, filename in enumerate(DATASET['files']):
                                                             **ep_props,
                                                             protocol_name=pname)
         
-        if varied_parameter in ep.varied_parameters:
+            if varied_parameter in ep.varied_parameters:
 
-            ######### 1) Define behavioral states #########
-            states_names, states_filters = tools.define_trials_arousal_state(ep, cond=state_metric)
+                ######### 1) Define behavioral states #########
+                states_names, states_filters = tools.define_trials_arousal_state(ep, cond=state_metric)
 
-            ######### 2) identify visually-responsive cells #########
+                ######### 2) identify visually-responsive cells #########
 
-            evokedStats = ep.pre_post_statistics(\
-                                                params.stat_test_props,
-                                                response_args=params.response_args,
-                                                response_significance_threshold=params.response_significance_threshold,
-                                                loop_over_cells=True,
-                                                repetition_keys=['repeat'],
-                                                verbose=False
-                                                )
-            
-            pos_evokedStats = ep.pre_post_statistics(\
-                                                    params.pos_stat_test_props,
+                evokedStats = ep.pre_post_statistics(\
+                                                    params.stat_test_props,
                                                     response_args=params.response_args,
                                                     response_significance_threshold=params.response_significance_threshold,
                                                     loop_over_cells=True,
                                                     repetition_keys=['repeat'],
                                                     verbose=False
                                                     )
-            
-            neg_evokedStats = ep.pre_post_statistics(\
-                                                    params.neg_stat_test_props,
-                                                    response_args=params.response_args,
-                                                    response_significance_threshold=params.response_significance_threshold,
-                                                    loop_over_cells=True,
-                                                    repetition_keys=['repeat'],
-                                                    verbose=False
-                                                    )
+                
+                pos_evokedStats = ep.pre_post_statistics(\
+                                                        params.pos_stat_test_props,
+                                                        response_args=params.response_args,
+                                                        response_significance_threshold=params.response_significance_threshold,
+                                                        loop_over_cells=True,
+                                                        repetition_keys=['repeat'],
+                                                        verbose=False
+                                                        )
+                
+                neg_evokedStats = ep.pre_post_statistics(\
+                                                        params.neg_stat_test_props,
+                                                        response_args=params.response_args,
+                                                        response_significance_threshold=params.response_significance_threshold,
+                                                        loop_over_cells=True,
+                                                        repetition_keys=['repeat'],
+                                                        verbose=False
+                                                        )
 
-            # find responsive ROIs for this contrast (from summary stats)
-            percentages[virus].append(np.sum(evokedStats['significant'], axis=0)/evokedStats['significant'].shape[0]*100)
-            pos_percentages[virus].append(np.sum(pos_evokedStats['significant'], axis=0)/pos_evokedStats['significant'].shape[0]*100)
-            neg_percentages[virus].append(np.sum(neg_evokedStats['significant'], axis=0)/neg_evokedStats['significant'].shape[0]*100)
+                # find responsive ROIs for this contrast (from summary stats)
+                percentages[virus].append(np.sum(evokedStats['significant'], axis=0)/evokedStats['significant'].shape[0]*100)
+                pos_percentages[virus].append(np.sum(pos_evokedStats['significant'], axis=0)/pos_evokedStats['significant'].shape[0]*100)
+                neg_percentages[virus].append(np.sum(neg_evokedStats['significant'], axis=0)/neg_evokedStats['significant'].shape[0]*100)
 
-            ######### 3) Fill dictionnaries with responsive neurons data #########
+                ######### 3) Fill dictionnaries with responsive neurons data #########
 
-            # INITILIAZE DICTIONARIES TO STORE RESPONSES AND BEHAVIORAL QUANTITIES
-            if included_mice is None:
-                img_ids = ep.varied_parameters[varied_parameter]
-                included_mice  = {f"{v}-{cond}-{img_id}" : [] for v, cond, img_id in product(viruses, states_names, img_ids)}
-                means = {f"{v}-{cond}-{img_id}" : [] for v, cond, img_id in product(viruses, states_names, img_ids)}
-                run_means = {f"{v}-{cond}-{img_id}" : [] for v, cond, img_id in product(viruses, states_names, img_ids)}
-                pos_means = {f"{v}-{cond}-{img_id}" : [] for v, cond, img_id in product(viruses, states_names, img_ids)}
-                neg_means = {f"{v}-{cond}-{img_id}" : [] for v, cond, img_id in product(viruses, states_names, img_ids)}
-            
-            for k, vparam in enumerate(ep.varied_parameters[varied_parameter]):
-                    
-                vparam_cond = (getattr(ep, varied_parameter)==vparam)
+                # INITILIAZE DICTIONARIES TO STORE RESPONSES AND BEHAVIORAL QUANTITIES
+                if included_mice is None:
+                    vparam_values = ep.varied_parameters[varied_parameter]
+                    included_mice  = {f"{v}-{cond}-{vparam}" : [] for v, cond, vparam in product(viruses, states_names, vparam_values)}
+                    means = {f"{v}-{cond}-{vparam}" : [] for v, cond, vparam in product(viruses, states_names, vparam_values)}
+                    run_means = {f"{v}-{cond}-{vparam}" : [] for v, cond, vparam in product(viruses, states_names, vparam_values)}
+                    pos_means = {f"{v}-{cond}-{vparam}" : [] for v, cond, vparam in product(viruses, states_names, vparam_values)}
+                    neg_means = {f"{v}-{cond}-{vparam}" : [] for v, cond, vparam in product(viruses, states_names, vparam_values)}
+                
+                for k, vparam in enumerate(ep.varied_parameters[varied_parameter]):
+                        
+                    vparam_cond = (getattr(ep, varied_parameter)==vparam)
 
-                for state, state_filter in zip(states_names, states_filters):
+                    for state, state_filter in zip(states_names, states_filters):
 
-                    if (np.sum(evokedStats['significant'][:, k], axis=0)>=params.NMIN_ROIS) and \
-                            (np.sum(vparam_cond & state_filter) >= params.NMIN_EPISODES):
-                        
-                        print("cond: %s-%s-%s -> included %i ROIs and %i episodes" % (virus,state,round(vparam), np.sum(evokedStats['significant'][:, k]), np.sum(vparam_cond & state_filter)))
-                        print("    -> %i ROIs out of %i ROIs are responsive" % (np.sum(evokedStats['significant'][:, k], axis=0), evokedStats['significant'].shape[0]))
-                        
-                        means[f"{virus}-{state}-{vparam}"].append(
-                            ep.dFoF[vparam_cond & state_filter, :, :][:, evokedStats['significant'][:, k], :])
-                        
-                        pos_means[f"{virus}-{state}-{vparam}"].append(
-                            ep.dFoF[vparam_cond & state_filter, :, :][:, pos_evokedStats['significant'][:, k], :])
-                                                
-                        neg_means[f"{virus}-{state}-{vparam}"].append(
-                            ep.dFoF[vparam_cond & state_filter, :, :][:, neg_evokedStats['significant'][:, k], :])
-                        
-                        included_mice[f"{virus}-{state}-{vparam}"].append(DATASET['subjects'][i])
-                        
-                    else:
-                        print("cond: %s-%s-%s -> [XX] response not included (%i ROIs, %i eps)" % (virus,state,round(vparam), np.sum(evokedStats['significant'][:, k]), np.sum(vparam_cond & state_filter)))
+                        if (np.sum(evokedStats['significant'][:, k], axis=0)>=params.NMIN_ROIS) and \
+                                (np.sum(vparam_cond & state_filter) >= params.NMIN_EPISODES):
+                            
+                            print("cond: %s-%s-%s -> included %i ROIs and %i episodes" % (virus,state,round(vparam), np.sum(evokedStats['significant'][:, k]), np.sum(vparam_cond & state_filter)))
+                            print("    -> %i ROIs out of %i ROIs are responsive" % (np.sum(evokedStats['significant'][:, k], axis=0), evokedStats['significant'].shape[0]))
+                            
+                            means[f"{virus}-{state}-{vparam}"].append(
+                                ep.dFoF[vparam_cond & state_filter, :, :][:, evokedStats['significant'][:, k], :])
+                            
+                            pos_means[f"{virus}-{state}-{vparam}"].append(
+                                ep.dFoF[vparam_cond & state_filter, :, :][:, pos_evokedStats['significant'][:, k], :])
+                                                    
+                            neg_means[f"{virus}-{state}-{vparam}"].append(
+                                ep.dFoF[vparam_cond & state_filter, :, :][:, neg_evokedStats['significant'][:, k], :])
+                            
+                            included_mice[f"{virus}-{state}-{vparam}"].append(DATASET['subjects'][i])
+                            
+                        else:
+                            print("cond: %s-%s-%s -> [XX] response not included (%i ROIs, %i eps)" % (virus,state,round(vparam), np.sum(evokedStats['significant'][:, k]), np.sum(vparam_cond & state_filter)))
+            else :
+                print("%s is not a valid varied parameter" % varied_parameter)
+
         else :
             print("session %s has no ROIs, excluded from analysis" % filename)
 
@@ -185,7 +188,7 @@ figurepath = '/Users/macbookair/work/Figures/'
 firgurename = 'dfof_natimgID_beh_mod_'+ neuron + '.svg'
 
 fig, AX = pt_fcts.plot_average_response(ep.t, means, 
-                                        viruses, states_names, img_ids, varied_parameter, 
+                                        viruses, states_names, vparam_values, varied_parameter, 
                                         included_mice, params.NMIN_SESSIONS)
 #plt.savefig(os.path.join(figurepath+firgurename), transparent=True, format='svg')
 
@@ -193,30 +196,30 @@ fig, AX = pt_fcts.plot_average_response(ep.t, means,
 baselineCond = (ep.t>-0.1) & (ep.t<0)
 
 fig, AX = pt_fcts.plot_average_response(ep.t, means, 
-                                        viruses, states_names, img_ids, varied_parameter, 
+                                        viruses, states_names, vparam_values, varied_parameter, 
                                         included_mice, params.NMIN_SESSIONS, 
                                         baselineSubtraction=True, baselineCond=baselineCond)
 
 #%% Pie chart of responsive neurons
 
 firgurename = 'pie_natimgID_beh_mod_'+ neuron + '.svg'
-fig, AX = pt_fcts.pie_chart_responsive_neurons(percentages, viruses, img_ids)
+fig, AX = pt_fcts.pie_chart_responsive_neurons(percentages, viruses, vparam_values)
 #plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
 
 #%% POSITIVE RESPONSES: Averaged dF/F0 with baseline substracted over responsive ROIs and over episodes across virus and behavioral states (std over sessions)
 baselineCond = (ep.t>-0.1) & (ep.t<0)
 
 fig, AX = pt_fcts.plot_average_response(ep.t, pos_means, 
-                                        viruses, states_names, img_ids, varied_parameter, 
+                                        viruses, states_names, vparam_values, varied_parameter, 
                                         included_mice, params.NMIN_SESSIONS)
 
 #%% NEGATIVE RESPONSES: Averaged dF/F0 with baseline substracted over responsive ROIs and over episodes across virus and behavioral states (std over sessions)
 baselineCond = (ep.t>-0.1) & (ep.t<0)
 
 fig, AX = pt_fcts.plot_average_response(ep.t, neg_means, 
-                                        viruses, states_names, img_ids, varied_parameter, 
+                                        viruses, states_names, vparam_values, varied_parameter, 
                                         included_mice, params.NMIN_SESSIONS)
 
 #%% Pie chart of responsive neurons separated by positive and negative responses
 
-fig, AX = pt_fcts.pie_chart_responsive_neurons_pos_neg(pos_percentages, neg_percentages, viruses, img_ids)
+fig, AX = pt_fcts.pie_chart_responsive_neurons_pos_neg(pos_percentages, neg_percentages, viruses, vparam_values)
