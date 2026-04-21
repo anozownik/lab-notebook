@@ -118,7 +118,7 @@ def plot_average_response_vparam(t, responses,
 
                 session_responses = np.array([np.mean(r, axis=(0,1)) for r in responses[key]])
                 
-                if baselineSubtraction:
+                if baselineSubtraction and len(session_responses) > 0:
                     if baselineCond is None:
                         baselineCond = (t<0)
                     session_responses= session_responses - session_responses[:, baselineCond].mean(axis=1, keepdims=True)
@@ -225,9 +225,9 @@ def pie_chart_responsive_neurons_vparam(percentages, viruses, varied_parameter):
 def pie_chart_responsive_neurons_pos_neg(pos_percentages, neg_percentages, viruses, varied_parameter=[], savepath=None):
 
     if len(varied_parameter) == 0:
-        fig, ax = pie_chart_responsive_neurons_pos_neg_no_vparam(pos_percentages, neg_percentages, viruses)
+        fig, AX = pie_chart_responsive_neurons_pos_neg_no_vparam(pos_percentages, neg_percentages, viruses)
     else :
-        fig, ax = pie_chart_responsive_neurons_pos_neg_vparam(pos_percentages, neg_percentages, viruses, varied_parameter)
+        fig, AX = pie_chart_responsive_neurons_pos_neg_vparam(pos_percentages, neg_percentages, viruses, varied_parameter)
 
     if savepath is not None:
         plt.savefig(os.path.join(savepath), transparent=True, format='svg')
