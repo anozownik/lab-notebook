@@ -22,7 +22,7 @@ dFoF_options = dict(\
     #method_for_F0='percentile', #more strict
     sliding_window= 300,
     percentile=10,
-    roi_to_neuropil_fluo_inclusion_factor=1.,
+    roi_to_neuropil_fluo_inclusion_factor=1.1,
     neuropil_correction_factor=0.7, 
     with_computed_neuropil_fact=True)
 
@@ -32,7 +32,7 @@ dFoF_options = dict(\
 # TO LOOP OVER NWB FILES WITH VISUAL STIMULUS --- DRIFITING GRATING ---  multisession
 
 folder = os.path.join(os.path.expanduser('~'), 'DATA', 'Adrianna',
-                        'PN_cond-NDNF-CB1_WT-vs-KD', '20260325','PNs', 'NWBs')
+                        'PN_cond-NDNF-CB1_WT-vs-KD', '20260325','PNs','NWBs', '2026_march_and_april') #'20260325','PNs',
 
 DATASET = physion.analysis.read_NWB.scan_folder_for_NWBfiles(folder,
                                         for_protocol='Natural-Images-4-repeats')
@@ -42,18 +42,18 @@ DATASET = physion.analysis.read_NWB.scan_folder_for_NWBfiles(folder,
 # STATISTICS PROPERTIES --- DRIFTING GRATINGS ---
 stat_test_props = dict(interval_pre=[-1.,0],                                   
                        interval_post=[1.,2.],                                   
-                       test='ttest',
+                       test='wilcoxon',
                        sign='both')
 
 pos_stat_test_props = dict(interval_pre=[-1.,0],                                   
                        interval_post=[1.,2.],                                   
-                       test='ttest',
+                       test='wilcoxon',
                        sign ='positive')
 response_significance_threshold =0.05
 
 neg_stat_test_props = dict(interval_pre=[-1.,0],                                   
                        interval_post=[1.,2.],                                   
-                       test='ttest',
+                       test='wilcoxon',
                        sign ='negative')
 
 #response_significance_threshold = 0.05
@@ -126,19 +126,20 @@ for i,filename in enumerate(DATASET['files']):
                                     verbose=False)
     
     print(i+1,'--', filename, '--', data.nROIs)
-    # print(data.protocols)
+    print(data.protocols)
 
     data.build_dFoF(**dFoF_options, verbose=False)
     #data.build_pupil_diameter()
-    data.build_facemotion()
+    #data.build_facemotion()
     data.build_running_speed()
     
     if data.nROIs>0: #and hasattr(data, 'pupil_diameter'):
 
         ep = physion.analysis.episodes.build.EpisodeData(data, 
                                                         quantities=['dFoF', 'running_speed'],
+                                                        prestim_duration=1.5,
                                                         protocol_name='Natural-Images-4-repeats')
-        
+        print(len(ep.t))
         if 'Image-ID' in ep.varied_parameters:
                
                 # determine virus        
@@ -174,7 +175,7 @@ for i,filename in enumerate(DATASET['files']):
                                                         repetition_keys=['Image-ID','repeat']
                                                         )
 
-
+                
                 
                 # 2) split rest / run
                 withinEpisode = (ep.t<0) & (ep.t<ep.time_duration[0]) # 2 conditions: episode must have values over zero and ???
@@ -213,7 +214,7 @@ for i,filename in enumerate(DATASET['files']):
                                 #print("cond: %s-%s -> %i ROIs out of %i ROIs are responsive" % (cond,virus, np.sum(responsiveROIs), len(responsiveROIs)))
                                 
                                 means['%s-%s' % (virus, cond)].append(
-                                        ep.dFoF[filter, :, :][:, responsiveROIs, 0:4998])
+                                        ep.dFoF[filter, :, :][:, responsiveROIs, :])
                                 
                                 run_means['%s-%s' % (virus, cond)].append(
                                         ep.running_speed[filter, :])
@@ -264,7 +265,7 @@ for j, cond in enumerate(['all', 'aroused', 'still']):
                         #print(means['%s-%s' % (virus,cond)])
                         #print(virus,cond)
                         #print(session_responses)
-                        pt.plot(ep.t[0:4998], 
+                        pt.plot(ep.t, 
                                 np.mean(session_responses,axis=0),
                                 sy=sem(session_responses,axis=0),
                                 color=color, ax=AX[j])
@@ -284,7 +285,7 @@ pt.set_common_ylims(AX)
 
 #plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
 
-#%% per session
+#%% per trials
 
 baselineCond = (ep.t>-1.9) & (ep.t<0)
 
@@ -348,7 +349,7 @@ pt.show()
 
 
 #%%
-baselineCond = (ep.t>-0.1) & (ep.t<0)
+baselineCond = (ep.t>-0.19) & (ep.t<0)
 
 fig, AX = pt.figure(axes=(3,1))
 
@@ -432,7 +433,7 @@ for j, cond in enumerate(['all', 'aroused', 'still']):
                 xticks = (0.0, 2.0),
                 ylabel='$\\Delta$F/F' if j==0 else '')
 pt.set_common_ylims(AX)
-plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
+#plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
 
 #%%
 
@@ -473,7 +474,7 @@ pt.set_common_ylims(AX)
 #plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
 
 #%%
-
+"""
 fig, AX = pt.figure(axes=(3,1))
 
 NMIN_SESSIONS = 0
@@ -506,7 +507,7 @@ for j, cond in enumerate(['all', 'aroused', 'still']):
         pt.set_plot(AX[j], 
                 xlabel='time (s)',
                 ylabel='pupil_diameter' if j==0 else '')
-pt.set_common_ylims(AX)   
+pt.set_common_ylims(AX)   """
 
    
    

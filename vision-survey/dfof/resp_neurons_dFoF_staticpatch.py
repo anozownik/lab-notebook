@@ -28,7 +28,7 @@ dFoF_options = dict(\
     #method_for_F0='percentile', #more strict
     sliding_window= 300,
     percentile=10,
-    roi_to_neuropil_fluo_inclusion_factor=1.,
+    roi_to_neuropil_fluo_inclusion_factor=1.1,
     neuropil_correction_factor=0.7, 
     with_computed_neuropil_fact=True)
 
@@ -38,7 +38,7 @@ dFoF_options = dict(\
 # TO LOOP OVER NWB FILES WITH VISUAL STIMULUS --- DRIFITING GRATING ---  multisession
 
 folder = os.path.join(os.path.expanduser('~'), 'DATA', 'Adrianna',
-                        'PN_cond-NDNF-CB1_WT-vs-KD', 'NWBs')
+                        'PN_cond-NDNF-CB1_WT-vs-KD', '20260325','PNs','NWBs', '2026_april') #'20260325','PNs',
 
 DATASET = physion.analysis.read_NWB.scan_folder_for_NWBfiles(folder,
                                         for_protocol='static-patch')
@@ -273,13 +273,13 @@ elif 'NDNF-cond-CB1_WT-vs-KD':
 
 
 figurepath = '/Users/macbookair/work/Figures/'
-firgurename = 'dfof_beh_mod_drifting_'+ neuron + '.svg'
+firgurename = 'dfof_statpatch_'+ neuron + '.svg'
 
 from scipy.stats import sem
 
 fig, AX = pt.figure(axes=(3,2))
 
-NMIN_SESSIONS = 1
+NMIN_SESSIONS = 0
   
 for j, cond in enumerate(['all', 'run', 'still']):
     for i, angle in zip(range(2), epGrating.varied_parameters['angle']):
@@ -330,7 +330,7 @@ for j, cond in enumerate(['all', 'run', 'still']):
                 if len(session_responses)>=NMIN_SESSIONS:
                         pt.plot(epGrating.t, 
                                 np.mean(session_responses, axis=0),
-                                #sy=sem(session_responses, axis=0),
+                                sy=sem(session_responses, axis=0),
                                 color=color, ax=AX[i][j])
                         
                 pt.annotate(AX[i][j],
@@ -349,7 +349,7 @@ for j, cond in enumerate(['all', 'run', 'still']):
                     title = "pos. responses" if j==0 else'')
 pt.set_common_ylims(AX)
 
-plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
+#plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
 
 # %% [markdown]
 # ## Responsive neurons -  NEGATIVE RESPONSES
@@ -388,13 +388,13 @@ for j, cond in enumerate(['all', 'run', 'still']):
                     ylabel='$\\Delta$F/F' if j==0 else '',
                     title = "neg. responses" if j==0 else'')
 pt.set_common_ylims(AX)
-plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
+#plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
 
 
 # %% [markdown]
 # ## pie charts -  ALL RESPONSES
 #%%
-firgurename = 'pie_resp_neurons_'+ neuron + '.svg'
+firgurename = 'pie_resp_neurons_statpatch'+ neuron + '.svg'
 fig, AX = pt.figure(axes=(2,2))
 
 NMIN_SESSIONS = 1
@@ -447,7 +447,35 @@ for k, virus, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['darkgrey','red']):
 #plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
 
 #%%
+baselineCond = (epGrating.t>-1.9) & (epGrating.t<0)
 
+for n in range(3):
+        fig,(axs) = plt.subplots(1,2, figsize= (12, 8))
+        n_rois = np.shape(means['sgRosa-all-c=0.0'][n][0])
+        mean_over_sessions = np.mean(means['sgRosa-all-c=0.0'][n],axis =0)
+        bsl_substract = []
+        for i in range(n_rois[0]):
+                bsl_mean= np.mean(mean_over_sessions[i][baselineCond])
+                bsl_substract.append(mean_over_sessions[i]-bsl_mean)
+        #max=max(bsl_substract)
+
+        im_wt = axs[0].pcolormesh(epGrating.t, np.arange(n_rois[0]), bsl_substract, cmap='magma', vmin= 0, vmax=2.5)
+        plt.colorbar(im_wt)
+
+
+        n_rois = np.shape(means['sgCnr1-all-c=0.0'][n][0])
+        mean_over_sessions = np.mean(means['sgCnr1-all-c=0.0'][n],axis =0)
+        bsl_substract = []
+        for i in range(n_rois[0]):
+                bsl_mean= np.mean(mean_over_sessions[i][baselineCond])
+                bsl_substract.append(mean_over_sessions[i]-bsl_mean)
+
+
+        im_kd = axs[1].pcolormesh(epGrating.t, np.arange(n_rois[0]), bsl_substract, cmap='magma',vmin= 0, vmax=2.5)
+        plt.colorbar(im_kd)
+pt.show()
+
+#%%
 
 fig, AX = pt.figure(axes=(2,1))
 

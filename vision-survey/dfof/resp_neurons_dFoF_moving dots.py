@@ -1,7 +1,7 @@
 # %%
 import numpy as np
 import os, sys
-sys.path.append('../physion/src') # add src code directory for physion
+sys.path.append('../../physion/src') # add src code directory for physion
 import physion
 import physion.utils.plot_tools as pt
 pt.set_style('manuscript')
@@ -28,9 +28,9 @@ dFoF_options = dict(\
     #method_for_F0='percentile', #more strict
     sliding_window= 300,
     percentile=10,
-    roi_to_neuropil_fluo_inclusion_factor=1.,
+    roi_to_neuropil_fluo_inclusion_factor=1.1,
     neuropil_correction_factor=0.7, 
-    with_computed_neuropil_fact=False)
+    with_computed_neuropil_fact=True)
 
 
 
@@ -38,7 +38,7 @@ dFoF_options = dict(\
 # TO LOOP OVER NWB FILES WITH VISUAL STIMULUS --- DRIFITING GRATING ---  multisession
 
 folder = os.path.join(os.path.expanduser('~'), 'DATA', 'Adrianna',
-                        'NDNF_cond-CB1_WT-vs-KD', 'NWBs')
+                        'PN_cond-NDNF-CB1_WT-vs-KD', '20260325','PNs','NWBs', '2026')
 
 DATASET = physion.analysis.read_NWB.scan_folder_for_NWBfiles(folder,
                                         for_protocol='moving-dots')
@@ -48,19 +48,19 @@ DATASET = physion.analysis.read_NWB.scan_folder_for_NWBfiles(folder,
 # STATISTICS PROPERTIES --- DRIFTING GRATINGS ---
 stat_test_props = dict(interval_pre=[-1.,0],                                   
                        interval_post=[1.,2.],                                   
-                       test='ttest',
+                       test='wilcoxon',
                        sign ='both')
 response_significance_threshold =0.05
 
 neg_stat_test_props = dict(interval_pre=[-1.,0],                                   
                        interval_post=[1.,2.],                                   
-                       test='ttest',
+                       test='wilcoxon',
                        sign ='negative')
 
 
 pos_stat_test_props = dict(interval_pre=[-1.,0],                                   
                        interval_post=[1.,2.],                                   
-                       test='ttest',
+                       test='wilcoxon',
                        sign ='positive')
 # PLOT PROPERTIES --- DRIFTING GRATINGS ---
 
@@ -86,55 +86,45 @@ NMIN_ROIS = 1
 
 # %%
 
-pos_means = {} # 
-for virus in ['sgRosa', 'sgCnr1']:
-      for cond in ['all', 'run', 'still']:
-              for c, speed in enumerate([60, 90]):
-                pos_means['%s-%s-c=%.1f' % (virus, cond, speed)] = []
 
-neg_means = {} # 
-for virus in ['sgRosa', 'sgCnr1']:
-      for cond in ['all', 'run', 'still']:
-              for c, speed in enumerate([60, 90]):
-                neg_means['%s-%s-c=%.1f' % (virus, cond, speed)] = []
 
 means = {} # 
 for virus in ['sgRosa', 'sgCnr1']:
       for cond in ['all', 'run', 'still']:
-              for c, speed in enumerate([60, 90]):
-                means['%s-%s-c=%.1f' % (virus, cond, speed)] = []
+              
+                means['%s-%s' % (virus, cond)] = []
 
 
 
 
 percentages = {}
 for virus in ['sgRosa', 'sgCnr1']:
-      
-        for c, speed in enumerate([60, 90]):
-                percentages['%s-c=%.1f' % (virus, speed)] = []
 
+              
+               percentages['%s' % (virus)] = []
 
 
 pos_percentages = {}
 for virus in ['sgRosa', 'sgCnr1']:
       
-        for c, speed in enumerate([60, 90]):
-                pos_percentages['%s-c=%.1f' % (virus, speed)] = []
-
+      for cond in ['all', 'run', 'still']:
+              
+                pos_percentages['%s-%s' % (virus, cond)] = []
 
 neg_percentages = {}
 for virus in ['sgRosa', 'sgCnr1']:
       
-        for c, speed in enumerate([60, 90]):
-                neg_percentages['%s-c=%.1f' % (virus, speed)] = []
+      for cond in ['all', 'run', 'still']:
+              
+                neg_percentages['%s-%s' % (virus, cond)] = []
 
 
 run_means = {} # 
 for virus in ['sgRosa', 'sgCnr1']:
+     
       for cond in ['all', 'run', 'still']:
-        for c, speed in enumerate([60, 90]):
-
-                run_means['%s-%s-c=%.1f' % (virus, cond, speed)] =[]
+              
+                run_means['%s-%s' % (virus, cond)] = []
 
 
 # if you want to trouble shoot stuff on only a couple of files, use the following. 
@@ -158,8 +148,8 @@ for i,filename in enumerate(DATASET['files']):
     # print(data.protocols)
 
     data.build_dFoF(**dFoF_options, verbose=True)
-    data.build_pupil_diameter()
-    data.build_facemotion()
+    #data.build_pupil_diameter()
+    #data.build_facemotion()
     data.build_running_speed()
     
     if data.nROIs>0:
@@ -178,79 +168,61 @@ for i,filename in enumerate(DATASET['files']):
                 
                 
                 
-        if 'speed' in ep.varied_parameters:
+
+
+
+                # 1) identify visually-responsive cells
+                evokedStats = ep.pre_post_statistics(\
+                                                        stat_test_props,
+                                                        response_args=\
+                                                        dict(quantity='dFoF'),
+                                                        response_significance_threshold=response_significance_threshold,
+                                                        loop_over_cells=True,
+                                                        repetition_keys=['speed','repeat']
+                                                        )
+                        
+
+
                 
+                # 2) split rest / run
+                withinEpisode = (ep.t>0) & (ep.t<ep.time_duration[0])
+                run = np.mean(ep.running_speed[:,withinEpisode], axis=1) > RUNNING_SPEED_THRESHOLD
 
 
-                        # 1) identify visually-responsive cells
-                        evokedStats = ep.pre_post_statistics_over_cells(\
-                                                                stat_test_props,
-                                                                response_args=\
-                                                                dict(quantity='dFoF'),
-                                                                response_significance_threshold=response_significance_threshold,
-                                                                )
+        
+                # find responsive ROIs for this contrast (from summary stats)
+                #speedCond = evokedStats['speed']==speed
+                responsiveROIs = evokedStats['significant'].flatten()
+
+                percentages['%s' % virus].append(np.sum(responsiveROIs)/len(responsiveROIs)*100)
+                #  pos_percentages['%s' % virus].append(np.sum(pos_responsiveROIs)/len(pos_responsiveROIs)*100)
+                # neg_percentages['%s' % virus].append(np.sum(neg_responsiveROIs)/len(neg_responsiveROIs)*100)
+
+
+
+                #
+                print("for session: %s" % filename)
+                for cond, filter in zip(['all', 'run', 'still'],
+                                        [run|~run, run, ~run]):
                         
+                        if (np.sum(responsiveROIs)>=NMIN_ROIS) and \
+                                (np.sum( filter)>= NMIN_EPISODES):
+                                # print("cond: %s-%s-c=%.1f -> included %i ROIs and %i episodes" % (cond,virus,speed, np.sum(responsiveROIs), np.sum(speed_cond & filter)))
+                                #print("cond: %s-%s-c=%.1f -> %i ROIs out of %i ROIs are responsive" % (cond,virus,speed, np.sum(responsiveROIs), len(responsiveROIs)))
+                                
+                                means['%s-%s' % (virus, cond)].append(
+                                        ep.dFoF[filter, :, :][:, responsiveROIs, :])
+                                
 
-                        pos_evokedStats = ep.pre_post_statistics_over_cells(\
-                                                                pos_stat_test_props,
-                                                                response_args=\
-                                                                dict(quantity='dFoF'),
-                                                                response_significance_threshold=response_significance_threshold,
-                                                                )
-
-                        neg_evokedStats = ep.pre_post_statistics_over_cells(\
-                                                                neg_stat_test_props,
-                                                                response_args=\
-                                                                dict(quantity='dFoF'),
-                                                                response_significance_threshold=response_significance_threshold,
-                                                                )
-
+                                
+                                run_means['%s-%s' % (virus, cond)].append(
+                                        ep.running_speed[filter,:])
+                                
                         
-                        # 2) split rest / run
-                        withinEpisode = (ep.t>0) & (ep.t<ep.time_duration[0])
-                        run = np.mean(ep.running_speed[:,withinEpisode], axis=1) > RUNNING_SPEED_THRESHOLD
-
-                        for speed in ep.varied_parameters['speed']:
-                        
-                                # find responsive ROIs for this contrast (from summary stats)
-                                speedCond = evokedStats['speed']==speed
-                                responsiveROIs = evokedStats['significant'][:,speedCond].flatten()
-                                pos_responsiveROIs = pos_evokedStats['significant'][:,speedCond].flatten()
-                                neg_responsiveROIs = neg_evokedStats['significant'][:, speedCond].flatten()
-                                percentages['%s-c=%.1f' % (virus, speed)].append(np.sum(responsiveROIs)/len(responsiveROIs)*100)
-                                pos_percentages['%s-c=%.1f' % (virus, speed)].append(np.sum(pos_responsiveROIs)/len(pos_responsiveROIs)*100)
-                                neg_percentages['%s-c=%.1f' % (virus, speed)].append(np.sum(neg_responsiveROIs)/len(neg_responsiveROIs)*100)
-                
-                                # build contrast condition on the single trial episodes
-                                speed_cond = (ep.speed==speed)
-
-                                #
-                                print("for session: %s" % filename)
-                                for cond, filter in zip(['all', 'run', 'still'],
-                                                        [run|~run, run, ~run]):
-                                        
-                                        if (np.sum(responsiveROIs)>=NMIN_ROIS) and \
-                                                (np.sum(speed_cond & filter)>= NMIN_EPISODES):
-                                                print("cond: %s-%s-c=%.1f -> included %i ROIs and %i episodes" % (cond,virus,speed, np.sum(responsiveROIs), np.sum(speed_cond & filter)))
-                                                print("cond: %s-%s-c=%.1f -> %i ROIs out of %i ROIs are responsive" % (cond,virus,speed, np.sum(responsiveROIs), len(responsiveROIs)))
-                                                
-                                                means['%s-%s-c=%.1f' % (virus, cond, speed)].append(
-                                                        ep.dFoF[speed_cond & filter, :, :][:, responsiveROIs, :])
-                                                
-                                                pos_means['%s-%s-c=%.1f' % (virus, cond, speed)].append(
-                                                        ep.dFoF[speed_cond & filter, :, :][:, pos_responsiveROIs, :])
-                                                
-                                                neg_means['%s-%s-c=%.1f' % (virus, cond, speed)].append(
-                                                        ep.dFoF[speed_cond & filter, :, :][:, neg_responsiveROIs, :])
-                                                
-                                                run_means['%s-%s-c=%.1f' % (virus, cond, speed)].append(
-                                                        ep.running_speed[speed_cond & filter,:])
-                                                
-                                        
-                                                
-                                        else:
-                                                print("cond: %s -> [XX] response not included (%i ROIs, %i eps)" % (cond, np.sum(responsiveROIs), np.sum(speed_cond & filter)))
-                        print()    
+                                
+                        else:
+                                print("cond: %s -> [XX] response not included (%i ROIs, %i eps)" % (cond, np.sum(responsiveROIs), np.sum( filter)))
+        print()    
 
 # now "means" is a list (over sessions) 
 #    of responses of shape (episodes, responsiveROIs, time)
@@ -272,6 +244,41 @@ firgurename = 'dfof_beh_mod_movdots_'+ neuron + '.svg'
 
 from scipy.stats import sem
 
+#%%
+from scipy.stats import sem
+fig, AX = pt.figure(axes=(3,1))
+for j, cond in enumerate(['all', 'run', 'still']):
+    
+        for k, virus, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['grey','darkred']):
+
+
+                session_responses = [np.mean(m,axis=(0,1))\
+                        for m in means['%s-%s' % (virus, cond)]]
+
+                if len(means['%s-%s' % (virus,cond)])>1:
+                        #print(means['%s-%s' % (virus,cond)])
+                        #print(virus,cond)
+                        #print(session_responses)
+                        pt.plot(ep.t, 
+                                np.mean(session_responses,axis=0),
+                                sy=sem(session_responses,axis=0),
+                                color=color, ax=AX[j])
+                        
+                pt.annotate(AX[j],
+                                'N=%i' % len(means['%s-%s'%(virus,cond)])+k*'\n',
+                                (0.2,0.6), ha='right',
+                                color=color, fontsize=6)
+        
+                pt.annotate(AX[j], cond, (0.5, 1))
+     
+
+        pt.set_plot(AX[j], 
+                xlabel='time (s)',
+                ylabel='$\\Delta$F/F' if j==0 else '')
+pt.set_common_ylims(AX)  
+
+
+
 fig, AX = pt.figure(axes=(3,2))
 
 NMIN_SESSIONS = 1
@@ -281,7 +288,7 @@ for j, cond in enumerate(['all', 'run', 'still']):
         for k, virus, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['grey','darkred']):
 
                 session_responses = [np.mean(m,axis=(0,1))\
-                        for m in means['%s-%s-c=%.1f' % (virus, cond, speed)]]
+                        for m in means['%s-%s' % (virus, cond, speed)]]
                 
                 if len(session_responses)>=NMIN_SESSIONS:
                         pt.plot(ep.t, 
@@ -305,6 +312,10 @@ for j, cond in enumerate(['all', 'run', 'still']):
 #pt.set_common_ylims(AX)
 
 #plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
+
+
+
+
 
 #%%
 firgurename = 'speed_beh_mod_movdots_'+ neuron + '.svg'

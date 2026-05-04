@@ -1,6 +1,6 @@
 import numpy as np
 import os, sys
-sys.path.append('../physion/src') # add src code directory for physion
+sys.path.append('../../physion/src') # add src code directory for physion
 import physion
 import physion.utils.plot_tools as pt
 pt.set_style('ticks')
@@ -113,7 +113,7 @@ for i, filename in enumerate(DATASET['files']):
         fig, AX = physion.dataviz.episodes.trial_average.plot(ep,
                                                         quantity='dFoF', with_std=False, with_stat_test=False, stat_test_props=stat_test_props,
                                                         color=color,
-                                                        roiIndices='all',
+                                                        
                                                         **plot_props)
         
         means['all-%s' % key].append(ep.dFoF[:,:,:].mean(axis=(0,1)))

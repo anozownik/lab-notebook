@@ -21,7 +21,7 @@ dFoF_options = dict(\
     #method_for_F0='percentile', #more strict
     sliding_window= 300,
     percentile=10,
-    roi_to_neuropil_fluo_inclusion_factor=1.,
+    roi_to_neuropil_fluo_inclusion_factor=1.1,
     neuropil_correction_factor=0.7, 
     with_computed_neuropil_fact=True)
 
@@ -31,7 +31,7 @@ dFoF_options = dict(\
 # TO LOOP OVER NWB FILES WITH VISUAL STIMULUS --- DRIFITING GRATING ---  multisession
 
 folder = os.path.join(os.path.expanduser('~'), 'DATA', 'Adrianna',
-                        'PN_cond-NDNF-CB1_WT-vs-KD', 'NWBs')
+                        'PN_cond-NDNF-CB1_WT-vs-KD', '20260325','PNs','NWBs', '2026_march_and_april')
 
 DATASET = physion.analysis.read_NWB.scan_folder_for_NWBfiles(folder,
                                         for_protocol='Natural-Images-4-repeats')
@@ -40,8 +40,8 @@ DATASET = physion.analysis.read_NWB.scan_folder_for_NWBfiles(folder,
 
 # STATISTICS PROPERTIES --- DRIFTING GRATINGS ---
 stat_test_props = dict(interval_pre=[-1.,0],                                   
-                       interval_post=[1.,2.],                                   
-                       test='ttest',
+                       interval_post=[1.,2.8],                                   
+                       test='wilcoxon',
                        sign='both')
 
 response_significance_threshold = 0.05
@@ -95,6 +95,7 @@ for i, filename in enumerate(DATASET['files']):
 
         ep = physion.analysis.episodes.build.EpisodeData(data, 
                                                         quantities=['dFoF', 'running_speed'],
+                                                        prestim_duration=1.5,
                                                         protocol_name='Natural-Images-4-repeats')
         
         if 'Image-ID' in ep.varied_parameters:
@@ -106,12 +107,16 @@ for i, filename in enumerate(DATASET['files']):
                         virus = 'sgCnr1'
 
                 # 1) identify visually-responsive cells
+
+                
                 evokedStats = ep.pre_post_statistics(\
-                                                        stat_test_props,
-                                                        response_args=\
-                                                        dict(quantity='dFoF'),
-                                                        response_significance_threshold=response_significance_threshold,
-                                                        )
+                                        stat_test_props,
+                                        response_args=\
+                                        dict(quantity='dFoF'),
+                                        response_significance_threshold=response_significance_threshold,
+                                        loop_over_cells=True,
+                                        repetition_keys=['repeat']
+                                        )
                 
                 # 2) split rest / run
                 withinEpisode = (ep.t>0) & (ep.t<ep.time_duration[0])
@@ -180,7 +185,7 @@ for j, cond in enumerate(['all', 'run', 'still']):
                 if len(session_responses)>=NMIN_SESSIONS:
                         pt.plot(ep.t, 
                                 np.mean(session_responses,axis=0),
-                                #sy=sem(session_responses, axis=0),
+                                sy=sem(session_responses, axis=0),
                                 color=color, ax=AX[i][j])
                         
                 pt.annotate(AX[i][j],
@@ -199,12 +204,40 @@ for j, cond in enumerate(['all', 'run', 'still']):
 pt.set_common_ylims(AX)  
 
 #plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
-
 #%%
-baselineCond = (Episodes.t>-0.1) & (Episodes.t<0)
-Responses['baselineSubstr_%s' % cond] = [\
-                r-r[baselineCond].min() for r in Responses[cond]]
+baselineCond = (ep.t>-0.1) & (ep.t<0)
 
+fig, AX = pt.figure(axes=(3,5))
+
+NMIN_SESSIONS = 0
+
+for j, cond in enumerate(['all', 'run', 'still']):
+    for i, img_id in enumerate([1., 2., 3., 4., 5.]):
+        for k, virus, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['grey','darkred']):
+
+                session_responses = [np.mean(m,axis=(0,1))\
+                        for m in means['%s-%s-%s' % (virus,cond,img_id)]]
+                
+                #if len(session_responses)>=NMIN_SESSIONS:
+                pt.plot(ep.t, 
+                        np.mean(session_responses,axis=0)- (np.mean(session_responses,axis=0)[baselineCond].mean()),
+                        sy=sem(session_responses, axis=0),
+                        color=color, ax=AX[i][j])
+                        
+                pt.annotate(AX[i][j],
+                            'N=%i' % len(session_responses)+k*'\n',
+                            (0.2,0.6), ha='right',
+                            color=color, fontsize=6)
+        if i==0:
+             pt.annotate(AX[i][j], cond, (0.5, 1))
+        if j==0:
+             pt.annotate(AX[i][j], 'Image-ID= %s ' % img_id,
+                         (0,1), ha='right')
+
+        pt.set_plot(AX[i][j], 
+                xlabel='time (s)' if i==2 else '',
+                ylabel='$\\Delta$F/F' if j==0 else '')
+pt.set_common_ylims(AX)  
 #%%
 
 
@@ -227,7 +260,7 @@ for k, virus, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['blue','darkred']):
                         ax=AX[k][i])
                 #pt.annotate(AX[k][i],)
                                 
-plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
+#plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
    
    
 
