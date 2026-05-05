@@ -60,9 +60,7 @@ def plot_average_response_no_vparam(t, responses,
             if baselineSubtraction:
                 if baselineCond is None:
                     baselineCond = (t<0)
-                session_responses= session_responses - session_responses[:, baselineCond].mean(axis=1, keepdims=True)
-
-            nb_mice = np.unique(included_mice[key]).shape[0]
+                session_responses = session_responses - session_responses[:, baselineCond].mean(axis=1, keepdims=True)
 
             if np.shape(session_responses)[0] >= nmin_sessions :
 
@@ -75,15 +73,27 @@ def plot_average_response_no_vparam(t, responses,
                             color=color_virus[virus], ax=AX[j])
             
             if len(responses[key]) > 0:
+
                 nb_eps, nb_rois = np.column_stack([(r.shape[0], r.shape[1]) for r in responses[key]])
-                pt.annotate(AX[j],
-                            'N=%i (%i mice, %i rois, %i eps)' % (len(responses[key]), 
-                                                                    nb_mice,
-                                                                    nb_rois.sum(), 
-                                                                    nb_eps.sum())
+
+                if included_mice is not None:
+                    nb_mice = np.unique(included_mice[key]).shape[0]
+                    pt.annotate(AX[j],
+                                'N=%i (%i mice, %i rois, %i eps)' % (len(responses[key]), 
+                                                                        nb_mice,
+                                                                        nb_rois.sum(), 
+                                                                        nb_eps.sum())
+                                                                +k*'\n',
+                                                                
+                                color=color_virus[virus], **annotation_props)
+                else :
+                    pt.annotate(AX[j],
+                                'N=%i (%i rois, %i eps)' % (len(responses[key]), 
+                                                            nb_rois.sum(), 
+                                                            nb_eps.sum())
                                                             +k*'\n',
-                                                            
-                            color=color_virus[virus], **annotation_props)          
+                                                                
+                                color=color_virus[virus], **annotation_props)          
             else :
                 pt.annotate(AX[j], 'N=0' +k*'\n', color=color_virus[virus], **annotation_props)
     
@@ -136,15 +146,28 @@ def plot_average_response_vparam(t, responses,
                                 color=color_virus[virus], ax=AX[i][j])
                 
                 if len(responses[key]) > 0:
+
                     nb_eps, nb_rois = np.column_stack([(r.shape[0], r.shape[1]) for r in responses[key]])
-                    pt.annotate(AX[i][j],
-                                'N=%i (%i mice, %i rois, %i eps)' % (len(responses[key]), 
-                                                                        nb_mice,
-                                                                        nb_rois.sum(), 
-                                                                        nb_eps.sum())
+
+                    if included_mice is not None:
+                        nb_mice = np.unique(included_mice[key]).shape[0]
+                        pt.annotate(AX[i][j],
+                                    'N=%i (%i mice, %i rois, %i eps)' % (len(responses[key]), 
+                                                                            nb_mice,
+                                                                            nb_rois.sum(), 
+                                                                            nb_eps.sum())
+                                                                    +k*'\n',
+                                                                    
+                                    color=color_virus[virus], **annotation_props)
+                    else :
+                        pt.annotate(AX[i][j],
+                                    'N=%i (%i rois, %i eps)' % (len(responses[key]), 
+                                                                nb_rois.sum(), 
+                                                                nb_eps.sum())
                                                                 +k*'\n',
-                                                                
-                                color=color_virus[virus], **annotation_props)
+                                                                    
+                                    color=color_virus[virus], **annotation_props)
+                    
                 else :
                     pt.annotate(AX[i][j], 'N=0' +k*'\n', color=color_virus[virus], **annotation_props)
 
@@ -374,5 +397,49 @@ def rastermap_session(session_id, ep, responses, viruses,
 
     if savepath is not None:
         plt.savefig(os.path.join(savepath), transparent=True, format='svg')
+
+    return fig, AX
+
+def plot_dist_reliability(reliability, viruses, plot_type='violin',
+                          only_significant=True, significant_threshold=0.01, savepath=None):
+
+    r_values = {virus: [] for virus in viruses}
+    for v in viruses:
+
+        for i in range(len(reliability[v])):
+
+            if only_significant:
+                significant = reliability[v][i]['pval'] <= significant_threshold
+                r_values[v].append(reliability[v][i]['r'][significant])
+            else :
+                r_values[v].append(reliability[v][i]['r'])
+        
+        r_values[v] = np.concatenate(r_values[v])
+
+    if plot_type == 'violin':
+
+        fig, AX = plt.subplots(1, 1, figsize=(1.5, 1.5))
+
+        for k, virus in enumerate(viruses):
+            pt.violin(r_values[virus], x=k*1, color=color_virus[virus], ax=AX)
+
+        pt.set_plot(AX, ['left'])
+
+    elif plot_type == 'hist' or plot_type == 'histogram':
+
+        fig, AX = pt.figure(axes=(len(viruses), 1))
+
+        for k, virus in enumerate(viruses):
+            ymax = np.histogram(r_values[virus], bins=20)[0].max()
+
+            AX[k].hist(r_values[virus], bins=20, color=color_virus[virus])
+            AX[k].vlines(np.mean(r_values[virus]), 0, ymax, color='black', linewidth=0.5, linestyle='dashed')
+            AX[k].annotate('mean=%.2f' % np.mean(r_values[virus]), xy=(np.mean(r_values[virus])-0.01, ymax), 
+                        ha='right', fontsize=4)
+            AX[k].set_title(virus+ ' (n=%d)' % len(r_values[virus]))
+            AX[k].set_xlim(round(np.min(r_values[virus])*10)*0.1 - 0.1, 1)
+    
+    else :
+        raise ValueError('plot_type value not recognized, should be "violin" or "hist"')
 
     return fig, AX
