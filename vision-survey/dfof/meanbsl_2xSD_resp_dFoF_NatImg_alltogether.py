@@ -22,7 +22,7 @@ dFoF_options = dict(\
     #method_for_F0='percentile', #more strict
     sliding_window= 300,
     percentile=10,
-    roi_to_neuropil_fluo_inclusion_factor=1.1,
+    roi_to_neuropil_fluo_inclusion_factor=1.,
     neuropil_correction_factor=0.7, 
     with_computed_neuropil_fact=True)
 
@@ -32,7 +32,7 @@ dFoF_options = dict(\
 # TO LOOP OVER NWB FILES WITH VISUAL STIMULUS --- DRIFITING GRATING ---  multisession
 
 folder = os.path.join(os.path.expanduser('~'), 'DATA', 'Adrianna',
-                        'PN_cond-NDNF-CB1_WT-vs-KD', '20260325','PNs','NWBs', '2026_march_and_april') #'20260325','PNs',
+                        'PN_cond-NDNF-CB1_WT-vs-KD', '20260325','PNs','NWBs', '2026_april') #'20260325','PNs',
 
 DATASET = physion.analysis.read_NWB.scan_folder_for_NWBfiles(folder,
                                         for_protocol='Natural-Images-4-repeats')
@@ -42,18 +42,18 @@ DATASET = physion.analysis.read_NWB.scan_folder_for_NWBfiles(folder,
 # STATISTICS PROPERTIES --- DRIFTING GRATINGS ---
 stat_test_props = dict(interval_pre=[-1.,0],                                   
                        interval_post=[1.,2.],                                   
-                       test='wilcoxon',
+                       test='ttest',
                        sign='both')
 
 pos_stat_test_props = dict(interval_pre=[-1.,0],                                   
                        interval_post=[1.,2.],                                   
-                       test='wilcoxon',
+                       test='ttest',
                        sign ='positive')
 response_significance_threshold =0.05
 
 neg_stat_test_props = dict(interval_pre=[-1.,0],                                   
                        interval_post=[1.,2.],                                   
-                       test='wilcoxon',
+                       test='ttest',
                        sign ='negative')
 
 #response_significance_threshold = 0.05
@@ -149,90 +149,79 @@ for i,filename in enumerate(DATASET['files']):
                         virus = 'sgCnr1'
 
                 # 1) identify visually-responsive cells
-                evokedStats = ep.pre_post_statistics(\
-                                                        stat_test_props,
-                                                        response_args=\
-                                                        dict(quantity='dFoF'),
-                                                        response_significance_threshold=response_significance_threshold,
-                                                        loop_over_cells=True,
-                                                        repetition_keys=['Image-ID','repeat']
-                                                        )
-                pos_evokedStats = ep.pre_post_statistics(\
-                                                        pos_stat_test_props,
-                                                        response_args=\
-                                                        dict(quantity='dFoF'),
-                                                        response_significance_threshold=response_significance_threshold,
-                                                        loop_over_cells=True,
-                                                        repetition_keys=['Image-ID','repeat']
-                                                        )
+        resp_ROIs =[]
+        bsl = (ep.t>-0.1) & (ep.t<0)
 
-                neg_evokedStats = ep.pre_post_statistics(\
-                                                        neg_stat_test_props,
-                                                        response_args=\
-                                                        dict(quantity='dFoF'),
-                                                        response_significance_threshold=response_significance_threshold,
-                                                        loop_over_cells=True,
-                                                        repetition_keys=['Image-ID','repeat']
-                                                        )
 
-                
-                
-                # 2) split rest / run
-                withinEpisode = (ep.t<0) & (ep.t<ep.time_duration[0]) # 2 conditions: episode must have values over zero and ???
+        stim = (ep.t>0.1) & (ep.t<1)
+        
+        for i in range(data.nROIs):
+                bsl_substr_stim = (np.mean(ep.dFoF[:,i,:],axis=0) - np.mean(ep.dFoF[:,i,bsl])).mean()
+                stim_mean = np.mean(ep.dFoF[:,i,stim],axis=(0,1))
+                bsl_std = np.std(np.mean(ep.dFoF[:,i,bsl],axis=(0)),axis=0)
+                if bsl_substr_stim > (2*bsl_std) and stim_mean >0:
+                        resp_ROIs.append(True)
+                else:
+                        resp_ROIs.append(False)
 
+ 
                 
-                Ep_run_speed = ep.running_speed[:,withinEpisode].mean(axis=1)
-                run = np.mean(ep.running_speed[:,withinEpisode], axis=1) > RUNNING_SPEED_THRESHOLD
-                
-                
+        # 2) split rest / run
+        withinEpisode = (ep.t<0) & (ep.t<ep.time_duration[0]) # 2 conditions: episode must have values over zero and ???
 
-    
-       
+        
+        Ep_run_speed = ep.running_speed[:,withinEpisode].mean(axis=1)
+        run = np.mean(ep.running_speed[:,withinEpisode], axis=1) > RUNNING_SPEED_THRESHOLD
+        
+        
+
+
+
+        
+        responsiveROIs = resp_ROIs
+        #pos_responsiveROIs = pos_evokedStats['significant'].flatten()
+        #neg_responsiveROIs = neg_evokedStats['significant'].flatten()
+        responsive = np.sum(responsiveROIs)/len(responsiveROIs)*100
+        percentages['%s' % virus].append(responsive)
+        #pos_percentages['%s' % virus].append(np.sum(pos_responsiveROIs)/len(pos_responsiveROIs)*100)
+        #neg_percentages['%s' % virus].append(np.sum(neg_responsiveROIs)/len(neg_responsiveROIs)*100)
+        
+                                                
+        
+        
                 
-                responsiveROIs = evokedStats['significant'].flatten()
-                pos_responsiveROIs = pos_evokedStats['significant'].flatten()
-                neg_responsiveROIs = neg_evokedStats['significant'].flatten()
-                responsive = np.sum(responsiveROIs)/len(responsiveROIs)*100
-                percentages['%s' % virus].append(responsive)
-                pos_percentages['%s' % virus].append(np.sum(pos_responsiveROIs)/len(pos_responsiveROIs)*100)
-                neg_percentages['%s' % virus].append(np.sum(neg_responsiveROIs)/len(neg_responsiveROIs)*100)
-               
-                                                   
+        #image_cond = (getattr(ep, 'Image-ID')==img_id)
+
+#
+        #print("for session: %s" % filename)
+        for cond, filter in zip(['all', 'aroused', 'still'],
+                                [run|~run, run, ~run]):
                 
+                if (np.sum(responsiveROIs)>=NMIN_ROIS) and \
+                        (np.sum( filter)>= NMIN_EPISODES):
+                        #print("cond: %s-%s -> included %i ROIs and %i episodes" % (virus,cond, np.sum(responsiveROIs), np.sum( filter)))
+                        #print("cond: %s-%s -> %i ROIs out of %i ROIs are responsive" % (cond,virus, np.sum(responsiveROIs), len(responsiveROIs)))
+                        
+                        means['%s-%s' % (virus, cond)].append(
+                                ep.dFoF[filter, :, :][:, responsiveROIs, :])
+                        
+                        run_means['%s-%s' % (virus, cond)].append(
+                                ep.running_speed[filter, :])
+
+                        
+                        #pos_means['%s-%s' % (virus, cond)].append(
+                          #      ep.dFoF[ filter, :, :][:, pos_responsiveROIs, :])
+                        
+                        #neg_means['%s-%s' % (virus, cond)].append(
+                         #       ep.dFoF[filter, :, :][:, neg_responsiveROIs, :])
+                        
+                        
+                        
                 
                         
-                #image_cond = (getattr(ep, 'Image-ID')==img_id)
-
-        #
-                #print("for session: %s" % filename)
-                for cond, filter in zip(['all', 'aroused', 'still'],
-                                        [run|~run, run, ~run]):
-                        
-                        if (np.sum(responsiveROIs)>=NMIN_ROIS) and \
-                                (np.sum( filter)>= NMIN_EPISODES):
-                                #print("cond: %s-%s -> included %i ROIs and %i episodes" % (virus,cond, np.sum(responsiveROIs), np.sum( filter)))
-                                #print("cond: %s-%s -> %i ROIs out of %i ROIs are responsive" % (cond,virus, np.sum(responsiveROIs), len(responsiveROIs)))
-                                
-                                means['%s-%s' % (virus, cond)].append(
-                                        ep.dFoF[filter, :, :][:, responsiveROIs, :])
-                                
-                                run_means['%s-%s' % (virus, cond)].append(
-                                        ep.running_speed[filter, :])
-
-                                
-                                pos_means['%s-%s' % (virus, cond)].append(
-                                        ep.dFoF[ filter, :, :][:, pos_responsiveROIs, :])
-                                
-                                neg_means['%s-%s' % (virus, cond)].append(
-                                        ep.dFoF[filter, :, :][:, neg_responsiveROIs, :])
-                                
-                                
-                                
-                        
-                                
-                        else:
-                                print("cond: %s -> [XX] response not included (%i ROIs, %i eps)" % (cond, np.sum(responsiveROIs), np.sum( filter)))
-                
+                else:
+                        print("cond: %s -> [XX] response not included (%i ROIs, %i eps)" % (cond, np.sum(responsiveROIs), np.sum( filter)))
+        
 
 # now "means" is a list (over sessions) 
 #    of responses of shape (episodes, responsiveROIs, time)
@@ -639,3 +628,44 @@ for k, virus, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['darkgrey','red']):
                 #pt.annotate(AX[k][i],)
 plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
 # %%
+#%% per ROI
+baselineCond = (ep.t>-1.9) & (ep.t<0)
+
+
+for n in range(5):
+        fig,AX = plt.subplots(1,2, figsize= (6,4))
+        n_rois = np.shape(means['sgRosa-all'][n][0])
+        mean_over_sessions = np.mean(means['sgRosa-all'][n],axis =0)
+        bsl_substract = []
+        for i in range(n_rois[0]):
+                bsl_mean= np.mean(mean_over_sessions[i][baselineCond])
+                bsl_substract.append(mean_over_sessions[i]-bsl_mean)
+        #max=max(bsl_substract)
+                pt.plot(ep.t, bsl_substract[i], ax=AX[0])
+
+        #im_wt = axs[0].pcolormesh(ep.t, np.arange(n_rois[0]), bsl_substract, cmap='magma', vmin= 0, vmax= 2.5)
+        #plt.colorbar(im_wt)
+        
+
+        n_rois = np.shape(means['sgCnr1-all'][n][0])
+        mean_over_sessions = np.mean(means['sgCnr1-all'][n],axis =0)
+        bsl_substract = []
+        for i in range(n_rois[0]):
+                bsl_mean= np.mean(mean_over_sessions[i][baselineCond])
+                bsl_substract.append(mean_over_sessions[i]-bsl_mean)
+                pt.plot(ep.t, bsl_substract[i], ax=AX[1])
+
+        #im_kd = axs[1].pcolormesh(ep.t, np.arange(n_rois[0]), bsl_substract, cmap='magma',vmin= 0, vmax=2.5)
+        #plt.colorbar(im_kd)
+pt.show()
+# %%
+        n_rois = np.shape(means['sgCnr1-all'][n][0])
+        mean_over_sessions = np.mean(means['sgCnr1-all'][n],axis =0)
+        bsl_substract = []
+        for i in range(n_rois[0]):
+                bsl_mean= np.mean(mean_over_sessions[i][baselineCond])
+                bsl_substract.append(mean_over_sessions[i]-bsl_mean)
+                pt.plot(ep.t, bsl_substract[i], ax=AX[1])
+
+        #im_kd = axs[1].pcolormesh(ep.t, np.arange(n_rois[0]), bsl_substract, cmap='magma',vmin= 0, vmax=2.5)
+        #plt.colorbar(im_kd)

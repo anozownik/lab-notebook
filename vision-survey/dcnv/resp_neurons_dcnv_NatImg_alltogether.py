@@ -1,6 +1,6 @@
 import numpy as np
 import os, sys
-sys.path.append('../physion/src') # add src code directory for physion
+sys.path.append('../../physion/src') # add src code directory for physion
 import physion
 import physion.utils.plot_tools as pt
 pt.set_style('ticks')
@@ -21,7 +21,7 @@ dFoF_options = dict(\
     #method_for_F0='percentile', #more strict
     sliding_window= 300,
     percentile=10,
-    roi_to_neuropil_fluo_inclusion_factor=1.,
+    roi_to_neuropil_fluo_inclusion_factor=1.1,
     neuropil_correction_factor=0.7,
     with_correctedFluo_and_F0=True, 
     with_computed_neuropil_fact=True)
@@ -42,18 +42,18 @@ DATASET = physion.analysis.read_NWB.scan_folder_for_NWBfiles(folder,
 # STATISTICS PROPERTIES --- DRIFTING GRATINGS ---
 stat_test_props = dict(interval_pre=[-1.,0],                                   
                        interval_post=[1.,2.],                                   
-                       test='ttest',
+                       test='wilcoxon',
                        sign='both')
 
 pos_stat_test_props = dict(interval_pre=[-1.,0],                                   
                        interval_post=[1.,2.],                                   
-                       test='ttest',
+                       test='wilcoxon',
                        sign ='positive')
 response_significance_threshold =0.05
 
 neg_stat_test_props = dict(interval_pre=[-1.,0],                                   
                        interval_post=[1.,2.],                                   
-                       test='ttest',
+                       test='wilcoxon',
                        sign ='negative')
 
 #response_significance_threshold = 0.05
@@ -122,8 +122,8 @@ for i,filename in enumerate(DATASET['files']):
     # print(data.protocols)
 
     data.build_dFoF(**dFoF_options, verbose=True)
-    data.build_pupil_diameter()
-    data.build_facemotion()
+    #data.build_pupil_diameter()
+    #data.build_facemotion()
     data.build_running_speed()
     data.build_Deconvolved()
     
@@ -142,28 +142,29 @@ for i,filename in enumerate(DATASET['files']):
                         virus = 'sgCnr1'
 
                 # 1) identify visually-responsive cells
-                evokedStats = ep.pre_post_statistics_over_cells(\
+                evokedStats = ep.pre_post_statistics(\
                                                         stat_test_props,
+                                                        response_args=\
+                                                        dict(quantity='dFoF'),
+                                                        response_significance_threshold=response_significance_threshold,
+                                                        loop_over_cells=True,
+                                                        repetition_keys=['Image-ID','repeat']
+                                                        )
+                pos_evokedStats = ep.pre_post_statistics(\
+                                                        pos_stat_test_props,
                                                         response_args=\
                                                         dict(quantity='dFoF'),
                                                         response_significance_threshold=response_significance_threshold,
                                                         repetition_keys=['Image-ID','repeat']
                                                         )
-                pos_evokedStats = ep.pre_post_statistics_over_cells(\
-                                                                pos_stat_test_props,
-                                                                response_args=\
-                                                                dict(quantity='dFoF'),
-                                                                response_significance_threshold=response_significance_threshold,
-                                                                repetition_keys=['Image-ID','repeat']
-                                                                )
 
-                neg_evokedStats = ep.pre_post_statistics_over_cells(\
-                                                                neg_stat_test_props,
-                                                                response_args=\
-                                                                dict(quantity='dFoF'),
-                                                                response_significance_threshold=response_significance_threshold,
-                                                                repetition_keys=['Image-ID','repeat']
-                                                                )
+                neg_evokedStats = ep.pre_post_statistics(\
+                                                        neg_stat_test_props,
+                                                        response_args=\
+                                                        dict(quantity='dFoF'),
+                                                        response_significance_threshold=response_significance_threshold,
+                                                        repetition_keys=['Image-ID','repeat']
+                                                        )
 
                 
                 # 2) split rest / run
@@ -172,12 +173,12 @@ for i,filename in enumerate(DATASET['files']):
 
                 
                 responsiveROIs = evokedStats['significant'].flatten()
-                pos_responsiveROIs = pos_evokedStats['significant'][:,:].flatten()
-                neg_responsiveROIs = neg_evokedStats['significant'][:,:].flatten()
+                #pos_responsiveROIs = pos_evokedStats['significant'][:,:].flatten()
+                #neg_responsiveROIs = neg_evokedStats['significant'][:,:].flatten()
                 responsive = np.sum(responsiveROIs)/len(responsiveROIs)*100
                 percentages['%s' % virus].append(responsive)
-                pos_percentages['%s' % virus].append(np.sum(pos_responsiveROIs)/len(pos_responsiveROIs)*100)
-                neg_percentages['%s' % virus].append(np.sum(neg_responsiveROIs)/len(neg_responsiveROIs)*100)
+                #pos_percentages['%s' % virus].append(np.sum(pos_responsiveROIs)/len(pos_responsiveROIs)*100)
+                #neg_percentages['%s' % virus].append(np.sum(neg_responsiveROIs)/len(neg_responsiveROIs)*100)
                
                                                    
                 
@@ -198,11 +199,11 @@ for i,filename in enumerate(DATASET['files']):
                                 means['%s-%s' % (virus, cond)].append(
                                         ep.Deconvolved[filter, :, :][:, responsiveROIs, :])
                                 
-                                pos_means['%s-%s' % (virus, cond)].append(
-                                        ep.Deconvolved[ filter, :, :][:, pos_responsiveROIs, :])
+                                #pos_means['%s-%s' % (virus, cond)].append(
+                                 #       ep.Deconvolved[ filter, :, :][:, pos_responsiveROIs, :])
                                 
-                                neg_means['%s-%s' % (virus, cond)].append(
-                                        ep.Deconvolved[filter, :, :][:, neg_responsiveROIs, :])
+                                #neg_means['%s-%s' % (virus, cond)].append(
+                                 #       ep.Deconvolved[filter, :, :][:, neg_responsiveROIs, :])
                                 
                                 
                                 
@@ -261,7 +262,7 @@ for j, cond in enumerate(['all', 'run', 'still']):
                 ylabel='a.u.' if j==0 else '')
 pt.set_common_ylims(AX)   
 
-plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
+#plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
 
 
 
@@ -331,7 +332,7 @@ for j, cond in enumerate(['all', 'run', 'still']):
                 title= 'pos. resp.' if j==0 else '')
 pt.set_common_ylims(AX)
 
-plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
+#plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
 
 # %% [markdown]
 # ## Responsive neurons -  NEGATIVE RESPONSES
@@ -369,7 +370,7 @@ for j, cond in enumerate(['all', 'run', 'still']):
                 title= 'neg. resp.' if j==0 else '')
 pt.set_common_ylims(AX)
 
-plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
+#plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
 
 #%%
 firgurename = 'pie_resp_neg_natimg_'+ neuron + '.svg'
@@ -395,5 +396,5 @@ for k, virus, color in zip(range(2), ['sgRosa', 'sgCnr1'], ['darkgrey','red']):
                         title = '%s' % (virus),
                         ax=AX[k])
                 #pt.annotate(AX[k][i],)
-plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
+#plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
 # %%

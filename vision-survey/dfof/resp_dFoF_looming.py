@@ -22,7 +22,7 @@ dFoF_options = dict(\
     #method_for_F0='percentile', #more strict
     sliding_window= 300,
     percentile=10,
-    roi_to_neuropil_fluo_inclusion_factor=1.1,
+    roi_to_neuropil_fluo_inclusion_factor=1.,
     neuropil_correction_factor=0.7, 
     with_computed_neuropil_fact=True)
 
@@ -32,36 +32,35 @@ dFoF_options = dict(\
 # TO LOOP OVER NWB FILES WITH VISUAL STIMULUS --- DRIFITING GRATING ---  multisession
 
 folder = os.path.join(os.path.expanduser('~'), 'DATA', 'Adrianna',
-                        'PN_cond-NDNF-CB1_WT-vs-KD', '20260325','PNs','NWBs', '2026_march_and_april') #'20260325','PNs',
+                        'PN_cond-NDNF-CB1_WT-vs-KD','20260325','PNs', 'NWBs', '2025') #'20260325','PNs',
 
 DATASET = physion.analysis.read_NWB.scan_folder_for_NWBfiles(folder,
-                                        for_protocol='Natural-Images-4-repeats')
+                                        for_protocol='looming-stim')
 
 
 
 # STATISTICS PROPERTIES --- DRIFTING GRATINGS ---
 stat_test_props = dict(interval_pre=[-1.,0],                                   
                        interval_post=[1.,2.],                                   
-                       test='wilcoxon',
+                       test='ttest',
                        sign='both')
 
 pos_stat_test_props = dict(interval_pre=[-1.,0],                                   
                        interval_post=[1.,2.],                                   
-                       test='wilcoxon',
+                       test='ttest',
                        sign ='positive')
 response_significance_threshold =0.05
 
 neg_stat_test_props = dict(interval_pre=[-1.,0],                                   
                        interval_post=[1.,2.],                                   
-                       test='wilcoxon',
+                       test='ttest',
                        sign ='negative')
 
 #response_significance_threshold = 0.05
 
 # PLOT PROPERTIES --- DRIFTING GRATINGS ---
 
-plot_props = dict(column_key='Image-ID',
-                  with_annotation=True,
+plot_props = dict(\
                   Ybar=0.5, Ybar_label="0.5$\Delta$F/F",
                   Xbar=0.5, Xbar_label="0.5s",
                   figsize=(13,1.8))
@@ -75,7 +74,7 @@ response_args = dict(quantity='dFoF')
 
 summary_stats = []
 
-RUNNING_SPEED_THRESHOLD = 0.5
+RUNNING_SPEED_THRESHOLD = 0.1
 NMIN_ROIS = 3
 NMIN_EPISODES = 2
 
@@ -132,16 +131,17 @@ for i,filename in enumerate(DATASET['files']):
     #data.build_pupil_diameter()
     #data.build_facemotion()
     data.build_running_speed()
+
     
     if data.nROIs>0: #and hasattr(data, 'pupil_diameter'):
 
         ep = physion.analysis.episodes.build.EpisodeData(data, 
                                                         quantities=['dFoF', 'running_speed'],
                                                         prestim_duration=1.5,
-                                                        protocol_name='Natural-Images-4-repeats')
+                                                        protocol_name='looming-stim')
         print(len(ep.t))
-        if 'Image-ID' in ep.varied_parameters:
-               
+        
+        for ep.color[-1] in ep.color:
                 # determine virus        
                 if 'sgRosa' in data.nwbfile.virus:
                         virus = 'sgRosa'
@@ -155,7 +155,7 @@ for i,filename in enumerate(DATASET['files']):
                                                         dict(quantity='dFoF'),
                                                         response_significance_threshold=response_significance_threshold,
                                                         loop_over_cells=True,
-                                                        repetition_keys=['Image-ID','repeat']
+                                                        repetition_keys=['repeat']
                                                         )
                 pos_evokedStats = ep.pre_post_statistics(\
                                                         pos_stat_test_props,
@@ -163,7 +163,7 @@ for i,filename in enumerate(DATASET['files']):
                                                         dict(quantity='dFoF'),
                                                         response_significance_threshold=response_significance_threshold,
                                                         loop_over_cells=True,
-                                                        repetition_keys=['Image-ID','repeat']
+                                                        repetition_keys=['repeat']
                                                         )
 
                 neg_evokedStats = ep.pre_post_statistics(\
@@ -172,10 +172,10 @@ for i,filename in enumerate(DATASET['files']):
                                                         dict(quantity='dFoF'),
                                                         response_significance_threshold=response_significance_threshold,
                                                         loop_over_cells=True,
-                                                        repetition_keys=['Image-ID','repeat']
+                                                        repetition_keys=['repeat']
                                                         )
 
-                
+
                 
                 # 2) split rest / run
                 withinEpisode = (ep.t<0) & (ep.t<ep.time_duration[0]) # 2 conditions: episode must have values over zero and ???
@@ -186,8 +186,8 @@ for i,filename in enumerate(DATASET['files']):
                 
                 
 
-    
-       
+
+
                 
                 responsiveROIs = evokedStats['significant'].flatten()
                 pos_responsiveROIs = pos_evokedStats['significant'].flatten()
@@ -196,8 +196,8 @@ for i,filename in enumerate(DATASET['files']):
                 percentages['%s' % virus].append(responsive)
                 pos_percentages['%s' % virus].append(np.sum(pos_responsiveROIs)/len(pos_responsiveROIs)*100)
                 neg_percentages['%s' % virus].append(np.sum(neg_responsiveROIs)/len(neg_responsiveROIs)*100)
-               
-                                                   
+                
+                                                        
                 
                 
                         
@@ -231,8 +231,8 @@ for i,filename in enumerate(DATASET['files']):
                         
                                 
                         else:
-                                print("cond: %s -> [XX] response not included (%i ROIs, %i eps)" % (cond, np.sum(responsiveROIs), np.sum( filter)))
-                
+                               print("cond: %s -> [XX] response not included (%i ROIs, %i eps)" % (cond, np.sum(responsiveROIs), np.sum( filter)))
+                        
 
 # now "means" is a list (over sessions) 
 #    of responses of shape (episodes, responsiveROIs, time)
@@ -285,7 +285,7 @@ pt.set_common_ylims(AX)
 
 #plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
 
-#%% per trials
+#%% per session
 
 baselineCond = (ep.t>-1.9) & (ep.t<0)
 
@@ -433,7 +433,7 @@ for j, cond in enumerate(['all', 'aroused', 'still']):
                 xticks = (0.0, 2.0),
                 ylabel='$\\Delta$F/F' if j==0 else '')
 pt.set_common_ylims(AX)
-#plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
+plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
 
 #%%
 
@@ -455,7 +455,7 @@ for j, cond in enumerate(['all', 'aroused', 'still']):
                         #print(session_responses)
                         pt.plot(ep.t, 
                                 np.mean(session_responses,axis=0),
-                                sy=sem(session_responses,axis=0),
+                                #sy=sem(session_responses,axis=0),
                                 color=color, ax=AX[j])
                         
                 pt.annotate(AX[j],
@@ -474,7 +474,7 @@ pt.set_common_ylims(AX)
 #plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
 
 #%%
-"""
+
 fig, AX = pt.figure(axes=(3,1))
 
 NMIN_SESSIONS = 0
@@ -507,7 +507,7 @@ for j, cond in enumerate(['all', 'aroused', 'still']):
         pt.set_plot(AX[j], 
                 xlabel='time (s)',
                 ylabel='pupil_diameter' if j==0 else '')
-pt.set_common_ylims(AX)   """
+pt.set_common_ylims(AX)   
 
    
    
