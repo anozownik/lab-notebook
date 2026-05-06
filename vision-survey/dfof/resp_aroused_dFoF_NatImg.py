@@ -19,12 +19,13 @@ from scipy.optimize import minimize
 from scipy.stats import sem
 from itertools import product
 import datetime
+from sklearn.metrics import auc
 
 # %%
 
 # TO LOOP OVER NWB FILES WITH VISUAL STIMULUS --- DRIFITING GRATING ---  multisession
 pname = 'Natural-Images-4-repeats'
-neuron = 'NDNF-cond-CB1'  # 'PN-cond-NDNF-CB1' or 'NDNF-cond-CB1'
+neuron = 'PN_cond-NDNF-CB1_WT-vs-KD'  # 'PN_cond-NDNF-CB1_WT-vs-KD' or 'NDNF-cond-CB1'
 
 folder = os.path.join(os.path.expanduser('~'), 'DATA', 'Adrianna',
                         neuron, 'NWBs')
@@ -37,6 +38,7 @@ DATASET = physion.analysis.read_NWB.scan_folder_for_NWBfiles(folder,
 viruses = ['sgRosa', 'sgCnr1']
 state_metric = 'speed' # 'speed' or 'pupil' or 'speed & pupil'
 varied_parameter = 'Image-ID'
+COMPUTE_RELIABILITY = True
 
 ep_props = dict(quantities=['dFoF', 'running_speed'],
                 prestim_duration=1.5,
@@ -47,11 +49,14 @@ means = None
 
 run_means = None
 pos_means, neg_means = None, None
+pos_means_rel, neg_means_rel = None, None
+means_rel, included_mice_rel = None, None
 
 # INITILIAZE DICTIONARIES TO STORE RESPONSES, PERCENTAGES AND BEHAVIORAL QUANTITIES
 percentages = {v : [] for v in viruses}
 pos_percentages = {v : [] for v in viruses}
 neg_percentages = {v : [] for v in viruses}
+reliability = {v : [] for v in viruses}
 
 # LOOP OVER SESSIONS
 
@@ -141,7 +146,12 @@ for i, filename in enumerate(DATASET['files']):
                     run_means = {f"{v}-{cond}-{vparam}" : [] for v, cond, vparam in product(viruses, states_names, vparam_values)}
                     pos_means = {f"{v}-{cond}-{vparam}" : [] for v, cond, vparam in product(viruses, states_names, vparam_values)}
                     neg_means = {f"{v}-{cond}-{vparam}" : [] for v, cond, vparam in product(viruses, states_names, vparam_values)}
-                
+
+                    means_rel = {f"{v}-{cond}-{vparam}" : [] for v, cond, vparam in product(viruses, states_names, vparam_values)}
+                    pos_means_rel = {f"{v}-{cond}-{vparam}" : [] for v, cond, vparam in product(viruses, states_names, vparam_values)}
+                    neg_means_rel = {f"{v}-{cond}-{vparam}" : [] for v, cond, vparam in product(viruses, states_names, vparam_values)}
+                    included_mice_rel  = {f"{v}-{cond}-{vparam}" : [] for v, cond, vparam in product(viruses, states_names, vparam_values)}
+
                 for k, vparam in enumerate(ep.varied_parameters[varied_parameter]):
                         
                     vparam_cond = (getattr(ep, varied_parameter)==vparam)
@@ -167,6 +177,51 @@ for i, filename in enumerate(DATASET['files']):
                             
                         else:
                             print("cond: %s-%s-%s -> [XX] response not included (%i ROIs, %i eps)" % (virus,state,round(vparam), np.sum(evokedStats['significant'][:, k]), np.sum(vparam_cond & state_filter)))
+            
+                ######### 4) Run reliability #########
+                if COMPUTE_RELIABILITY :
+                    
+                    ep.dFoF = ep.dFoF[:, evokedStats['significant'].sum(axis=1) >= 1, :]
+                    summary_reliability = ep.reliability(
+                                                response_args=params.response_args,
+                                                response_significance_threshold=0.01,
+                                                loop_over_cells=True,
+                                                repetition_keys=['repeat'],
+                                                verbose=False)
+                    reliability[virus].append({key: summary_reliability[key] for key in ['r', 'pval']})
+
+                    for k, vparam in enumerate(ep.varied_parameters[varied_parameter]):
+
+                        vparam_cond = (getattr(ep, varied_parameter)==vparam)
+
+                        for state, state_filter in zip(states_names, states_filters):
+
+                            if (np.sum(summary_reliability['significant'][:, k], axis=0)>=params.NMIN_ROIS) and \
+                                    (np.sum(vparam_cond & state_filter) >= params.NMIN_EPISODES):
+                                
+                                print("cond: %s-%s-%s -> included %i ROIs and %i episodes" % (virus,state,round(vparam), np.sum(summary_reliability['significant'][:, k]), np.sum(vparam_cond & state_filter)))
+                                print("    -> %i ROIs out of %i ROIs are responsive" % (np.sum(summary_reliability['significant'][:, k], axis=0), summary_reliability['significant'].shape[0]))
+                                
+                                session_response = ep.dFoF[vparam_cond & state_filter][:, summary_reliability['significant'][:, k], :]
+                                average_trial_centered = (np.mean(session_response, axis=0).T - np.mean(session_response[:, :, ep.t<0], axis=(0, 2))).T
+
+                                means_rel[f"{virus}-{state}-{vparam}"].append(ep.dFoF[vparam_cond & state_filter][:, summary_reliability['significant'][:, k], :])
+                                
+                                pos = np.array([auc(np.arange(0, session_response.shape[2]), average_trial_centered[i]) for i in range(session_response.shape[1])]) >= 0
+
+                                if np.sum(pos) >= params.NMIN_ROIS:
+                                    pos_means_rel[f"{virus}-{state}-{vparam}"].append(
+                                        ep.dFoF[vparam_cond & state_filter][:, summary_reliability['significant'][:, k], :][:, pos, :])
+
+                                if np.sum(~pos) >= params.NMIN_ROIS:                 
+                                    neg_means_rel[f"{virus}-{state}-{vparam}"].append(
+                                        ep.dFoF[vparam_cond & state_filter][:, summary_reliability['significant'][:, k], :][:, ~pos, :])
+                                
+                                included_mice_rel[f"{virus}-{state}-{vparam}"].append(DATASET['subjects'][i])
+
+                            else:
+                                print("cond: %s-%s -> [XX] response not included (%i ROIs, %i eps)" % (virus,state, np.sum(evokedStats['significant']), np.sum(state_filter)))
+
             else :
                 print("%s is not a valid varied parameter" % varied_parameter)
 
@@ -178,6 +233,10 @@ for i, filename in enumerate(DATASET['files']):
 means = tools.remove_empty_sessions(means)
 pos_means = tools.remove_empty_sessions(pos_means)
 neg_means = tools.remove_empty_sessions(neg_means)
+
+means_rel = tools.remove_empty_sessions(means_rel)
+pos_means_rel = tools.remove_empty_sessions(pos_means_rel)
+neg_means_rel = tools.remove_empty_sessions(neg_means_rel)
 
 # now "means" is a list (over sessions) 
 #    of responses of shape (episodes, responsiveROIs, time)
@@ -223,3 +282,35 @@ fig, AX = pt_fcts.plot_average_response(ep.t, neg_means,
 #%% Pie chart of responsive neurons separated by positive and negative responses
 
 fig, AX = pt_fcts.pie_chart_responsive_neurons_pos_neg(pos_percentages, neg_percentages, viruses, vparam_values)
+
+
+#%%
+
+pt_fcts.plot_dist_reliability(reliability, viruses, varied_parameter=vparam_values, vparam_name=varied_parameter, plot_type='hist')
+pt_fcts.plot_dist_reliability(reliability, viruses, varied_parameter=vparam_values, vparam_name=varied_parameter)
+pt_fcts.plot_dist_reliability(reliability, viruses, varied_parameter=vparam_values, vparam_name=varied_parameter, plot_type='hist', only_significant=False)
+pt_fcts.plot_dist_reliability(reliability, viruses, varied_parameter=vparam_values, vparam_name=varied_parameter, only_significant=False)
+
+#%%
+
+fig, AX = pt_fcts.plot_average_response(ep.t, neg_means_rel, 
+                                        viruses, states_names, [], varied_parameter, 
+                                        included_mice_rel, params.NMIN_SESSIONS)
+
+pt.set_common_ylims(AX)
+
+#%%
+
+fig, AX = pt_fcts.plot_average_response(ep.t, neg_means, 
+                                        viruses, states_names, [], varied_parameter, 
+                                        included_mice, params.NMIN_SESSIONS)
+
+pt.set_common_ylims(AX)
+
+#%%
+baselineCond = (ep.t<0)
+fig, AX = pt_fcts.plot_average_response(ep.t, neg_means_rel, 
+                                        viruses, states_names, [], varied_parameter, 
+                                        included_mice_rel, params.NMIN_SESSIONS, 
+                                        baselineSubtraction=True, baselineCond=baselineCond)
+pt.set_common_ylims(AX)

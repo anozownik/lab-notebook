@@ -314,54 +314,10 @@ fig, AX = pt_fcts.rastermap_session(session_id, ep, means, viruses, state_cond=c
 color_virus = {'sgRosa' : 'grey', 
                'sgCnr1': "darkred"}
 
-def plot_dist_reliability(reliability, viruses, plot_type='violin',
-                          only_significant=True, significant_threshold=0.01, savepath=None):
-
-    r_values = {virus: [] for virus in viruses}
-    for v in viruses:
-
-        for i in range(len(reliability[v])):
-
-            if only_significant:
-                significant = reliability[v][i]['pval'] <= significant_threshold
-                r_values[v].append(reliability[v][i]['r'][significant])
-            else :
-                r_values[v].append(reliability[v][i]['r'])
-        
-        r_values[v] = np.concatenate(r_values[v])
-
-    if plot_type == 'violin':
-
-        fig, AX = plt.subplots(1, 1, figsize=(1.5, 1.5))
-
-        for k, virus in enumerate(viruses):
-            pt.violin(r_values[virus], x=k*1, color=color_virus[virus], ax=AX)
-
-        pt.set_plot(AX, ['left'])
-
-    elif plot_type == 'hist' or plot_type == 'histogram':
-
-        fig, AX = pt.figure(axes=(len(viruses), 1))
-
-        for k, virus in enumerate(viruses):
-            ymax = np.histogram(r_values[virus], bins=20)[0].max()
-
-            AX[k].hist(r_values[virus], bins=20, color=color_virus[virus])
-            AX[k].vlines(np.mean(r_values[virus]), 0, ymax, color='black', linewidth=0.5, linestyle='dashed')
-            AX[k].annotate('mean=%.2f' % np.mean(r_values[virus]), xy=(np.mean(r_values[virus])-0.01, ymax), 
-                        ha='right', fontsize=4)
-            AX[k].set_title(virus+ ' (n=%d)' % len(r_values[virus]))
-            AX[k].set_xlim(round(np.min(r_values[virus])*10)*0.1 - 0.1, 1)
-    
-    else :
-        raise ValueError('plot_type value not recognized, should be "violin" or "hist"')
-
-    return fig, AX
-
-plot_dist_reliability(reliability, viruses, plot_type='hist')
-plot_dist_reliability(reliability, viruses)
-plot_dist_reliability(reliability, viruses, plot_type='hist', only_significant=False)
-plot_dist_reliability(reliability, viruses, only_significant=False)
+pt_fcts.plot_dist_reliability(reliability, viruses, plot_type='hist')
+pt_fcts.plot_dist_reliability(reliability, viruses)
+pt_fcts.plot_dist_reliability(reliability, viruses, plot_type='hist', only_significant=False)
+pt_fcts.plot_dist_reliability(reliability, viruses, only_significant=False)
 
 #%%
 

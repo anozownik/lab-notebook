@@ -7,6 +7,7 @@ pt.set_style('ticks')
 import numpy as np
 from scipy.stats import sem
 import matplotlib.pyplot as plt
+from itertools import product
 
 # plot variables
 color_virus = {'sgRosa' : 'grey', 
@@ -400,8 +401,21 @@ def rastermap_session(session_id, ep, responses, viruses,
 
     return fig, AX
 
-def plot_dist_reliability(reliability, viruses, plot_type='violin',
+def plot_dist_reliability(reliability, viruses, varied_parameter=[], vparam_name='', plot_type='violin', 
                           only_significant=True, significant_threshold=0.01, savepath=None):
+
+    if len(varied_parameter) == 0:
+        fig, AX = plot_dist_reliability_no_vparam(reliability, viruses, plot_type, only_significant, significant_threshold)
+    else :
+        fig, AX = plot_dist_reliability_vparam(reliability, viruses, varied_parameter, vparam_name, plot_type, only_significant, significant_threshold)
+
+    if savepath is not None:
+        plt.savefig(os.path.join(savepath), transparent=True, format='svg')
+
+    return fig, AX
+
+def plot_dist_reliability_no_vparam(reliability, viruses, plot_type='violin',
+                          only_significant=True, significant_threshold=0.01):
 
     r_values = {virus: [] for virus in viruses}
     for v in viruses:
@@ -436,8 +450,65 @@ def plot_dist_reliability(reliability, viruses, plot_type='violin',
             AX[k].vlines(np.mean(r_values[virus]), 0, ymax, color='black', linewidth=0.5, linestyle='dashed')
             AX[k].annotate('mean=%.2f' % np.mean(r_values[virus]), xy=(np.mean(r_values[virus])-0.01, ymax), 
                         ha='right', fontsize=4)
-            AX[k].set_title(virus+ ' (n=%d)' % len(r_values[virus]))
+            AX[k].set_title(virus+ ' (n=%d)' % len(r_values[virus]), fontsize=6)
             AX[k].set_xlim(round(np.min(r_values[virus])*10)*0.1 - 0.1, 1)
+    
+    else :
+        raise ValueError('plot_type value not recognized, should be "violin" or "hist"')
+
+    return fig, AX
+
+def plot_dist_reliability_vparam(reliability, viruses, varied_parameter, vparam_name, 
+                                 plot_type='violin', only_significant=True, significant_threshold=0.01):
+
+    r_values = {f"{virus}-{vparam}": [] for virus, vparam in product(viruses, varied_parameter)}
+
+    for v in viruses:
+
+        for k, vparam in enumerate(varied_parameter):
+
+            for i in range(len(reliability[v])):
+        
+                if only_significant:
+                    significant = reliability[v][i]['pval'][:, k] <= significant_threshold
+                    r_values[f"{v}-{vparam}"].append(reliability[v][i]['r'][:, k][significant])
+                else :
+                    r_values[f"{v}-{vparam}"].append(reliability[v][i]['r'][:, k])
+        
+            r_values[f"{v}-{vparam}"] = np.concatenate(r_values[f"{v}-{vparam}"])
+
+    if plot_type == 'violin':
+
+        fig, AX = plt.subplots(len(varied_parameter), 1, figsize=(1.5, 1.5*len(varied_parameter)))
+
+        for i, vparam in enumerate(varied_parameter):
+
+            for k, virus in enumerate(viruses):
+                pt.violin(r_values[f"{virus}-{vparam}"], x=k*1, color=color_virus[virus], ax=AX[i])
+
+            pt.set_plot(AX[i], ['left'])
+            pt.annotate(AX[i], '%s=%.0f ' % (vparam_name, vparam),
+                                (0,1.05), ha='right', fontsize=7)
+
+    elif plot_type == 'hist' or plot_type == 'histogram':
+
+        fig, AX = pt.figure(axes=(len(viruses), len(varied_parameter)))
+
+        for i, vparam in enumerate(varied_parameter):
+
+            for k, virus in enumerate(viruses):
+                ymax = np.histogram(r_values[f"{virus}-{vparam}"], bins=20)[0].max()
+
+                AX[i][k].hist(r_values[f"{virus}-{vparam}"], bins=20, color=color_virus[virus])
+                AX[i][k].vlines(np.mean(r_values[f"{virus}-{vparam}"]), 0, ymax, color='black', linewidth=0.5, linestyle='dashed')
+                AX[i][k].annotate('mean=%.2f' % np.mean(r_values[f"{virus}-{vparam}"]), xy=(np.mean(r_values[f"{virus}-{vparam}"])-0.01, ymax), 
+                            ha='right', fontsize=4)
+                AX[i][k].set_title(virus+ ' (n=%d)' % len(r_values[f"{virus}-{vparam}"]), fontsize=6)
+                AX[i][k].set_xlim(round(np.min(r_values[f"{virus}-{vparam}"])*10)*0.1 - 0.1, 1)
+
+                if k == 0 :
+                    pt.annotate(AX[i][k], '%s=%.0f ' % (vparam_name, vparam),
+                                    (-0.25,1.), ha='right', fontsize=7)
     
     else :
         raise ValueError('plot_type value not recognized, should be "violin" or "hist"')
