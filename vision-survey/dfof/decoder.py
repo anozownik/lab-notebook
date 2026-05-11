@@ -41,7 +41,7 @@ dFoF_options = dict(\
     percentile=10,
     roi_to_neuropil_fluo_inclusion_factor=1.1,
     neuropil_correction_factor=0.7, 
-    with_computed_neuropil_fact=False)
+    with_computed_neuropil_fact=True)
 
 data = Data(filename)
 data.build_dFoF(**dFoF_options, verbose=False)
@@ -49,16 +49,13 @@ ep= EpisodeData(data, protocol_name='Natural-Images-4-repeats',
                 quantities =['dFoF'])
 
 
-# %% [markdown]
-
-# ## 
-
+# %% 
 
 # --------------------------------------------- #
 # Transforming to matrix and list  for sklearn X, y respectively
 # --------------------------------------------- #
 
-def build_X_y(ep, averaging_window=[0, 2]):
+def build_X_y(ep, averaging_window=[2.5, 3.5]):
 
     averaging_window_cond = (ep.t> averaging_window[0])& (ep.t<averaging_window[1])
     X = np.zeros((ep.dFoF.shape[0], ep.dFoF.shape[1])) # list of matrice responses (Nrois, Ntrials) 
@@ -74,7 +71,7 @@ def build_X_y(ep, averaging_window=[0, 2]):
         i+=np.sum(pattern_cond)
 
     return X, y
-X, y = build_X_y(ep, averaging_window_cond)
+X, y = build_X_y(ep, averaging_window=[2.5, 3.5])
 #%%
 # normalization of input data
 normed=True
@@ -83,7 +80,6 @@ if normed:
      scaler = StandardScaler()
      X = scaler.fit_transform(X,y)
 
-#%%
 
 # %%
 fig, AX = pt.figure(axes=(1, len(np.unique(y))), ax_scale=(2,.6))
@@ -242,12 +238,12 @@ pt.set_plot(ax, ylabel='accuracy', xticks_labels=[])
 # %%
 nSeed = 20
 denoising = True
-averaging_window = [0, 2] # seconds, interval to average to get single activation level per neuron
+averaging_window = [2.5, 3] # seconds, interval to average to get single activation level per neuron
 
 model = svm.SVC(kernel='linear') #NearestCentroid() #KNeighborsClassifier(n_neighbors=2)
 model = KNeighborsClassifier(n_neighbors=1)
 folder = os.path.join(os.path.expanduser('~'),
-                      'DATA', 'Adrianna', 'PN_cond-NDNF-CB1_WT-vs-KD', '20260325','PNs','NWBs', '2026_march_and_april')
+                      'DATA', 'Adrianna', 'PN_cond-NDNF-CB1_WT-vs-KD', '20260325', 'PNs', 'NWBs', '2026_march_and_april')
 
 DATASET = physion.analysis.read_NWB.scan_folder_for_NWBfiles(folder,
                                         for_protocol='Natural-Images-4-repeats')
