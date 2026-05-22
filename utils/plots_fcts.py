@@ -61,7 +61,8 @@ def plot_average_response_no_vparam(t, responses,
             if baselineSubtraction:
                 if baselineCond is None:
                     baselineCond = (t<0)
-                session_responses = session_responses - session_responses[:, baselineCond].mean(axis=1, keepdims=True)
+                if len(session_responses.shape) == 2:
+                    session_responses = session_responses - session_responses[:, baselineCond].mean(axis=1, keepdims=True)
 
             if np.shape(session_responses)[0] >= nmin_sessions :
 
@@ -132,9 +133,8 @@ def plot_average_response_vparam(t, responses,
                 if baselineSubtraction and len(session_responses) > 0:
                     if baselineCond is None:
                         baselineCond = (t<0)
-                    session_responses= session_responses - session_responses[:, baselineCond].mean(axis=1, keepdims=True)
-
-                nb_mice = np.unique(included_mice[key]).shape[0]
+                    if len(session_responses.shape) == 2:
+                        session_responses= session_responses - session_responses[:, baselineCond].mean(axis=1, keepdims=True)
 
                 if np.shape(session_responses)[0] >= nmin_sessions :
 

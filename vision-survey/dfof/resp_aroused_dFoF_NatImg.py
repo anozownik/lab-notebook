@@ -38,7 +38,9 @@ DATASET = physion.analysis.read_NWB.scan_folder_for_NWBfiles(folder,
 viruses = ['sgRosa', 'sgCnr1']
 state_metric = 'speed' # 'speed' or 'pupil' or 'speed & pupil'
 varied_parameter = 'Image-ID'
-COMPUTE_RELIABILITY = True
+COMPUTE_RELIABILITY = False
+stat_test_props = params.stat_test_props
+stat_test_props['interval_post'] = [1, 2.8]
 
 ep_props = dict(quantities=['dFoF', 'running_speed'],
                 prestim_duration=1.5,
@@ -105,7 +107,7 @@ for i, filename in enumerate(DATASET['files']):
                 ######### 2) identify visually-responsive cells #########
 
                 evokedStats = ep.pre_post_statistics(\
-                                                    params.stat_test_props,
+                                                    stat_test_props,
                                                     response_args=params.response_args,
                                                     response_significance_threshold=params.response_significance_threshold,
                                                     loop_over_cells=True,
@@ -270,14 +272,14 @@ baselineCond = (ep.t>-0.1) & (ep.t<0)
 
 fig, AX = pt_fcts.plot_average_response(ep.t, pos_means, 
                                         viruses, states_names, vparam_values, varied_parameter, 
-                                        included_mice, params.NMIN_SESSIONS)
+                                        None, params.NMIN_SESSIONS)
 
 #%% NEGATIVE RESPONSES: Averaged dF/F0 with baseline substracted over responsive ROIs and over episodes across virus and behavioral states (std over sessions)
 baselineCond = (ep.t>-0.1) & (ep.t<0)
 
 fig, AX = pt_fcts.plot_average_response(ep.t, neg_means, 
                                         viruses, states_names, vparam_values, varied_parameter, 
-                                        included_mice, params.NMIN_SESSIONS)
+                                        None, params.NMIN_SESSIONS)
 
 #%% Pie chart of responsive neurons separated by positive and negative responses
 
@@ -314,3 +316,277 @@ fig, AX = pt_fcts.plot_average_response(ep.t, neg_means_rel,
                                         included_mice_rel, params.NMIN_SESSIONS, 
                                         baselineSubtraction=True, baselineCond=baselineCond)
 pt.set_common_ylims(AX)
+
+#%% CV factor
+resp_win = (ep.t > 0.2) & (ep.t < 1.5)
+CV_coef = {f"{v}-{vparam}" : [] for v, vparam in product(viruses, vparam_values)}
+fano_factor = {f"{v}-{vparam}" : [] for v, vparam in product(viruses, vparam_values)}
+
+for v in viruses:
+    for vparam in vparam_values:
+
+        nb_neurons = 0
+        print(f"Processing {v} - {vparam} ...")
+
+        for i in range(len(means[f"{v}-all-{vparam}"])):
+
+            nb_neurons += means[f"{v}-all-{vparam}"][i].shape[1]
+
+            mean_trial = means[f"{v}-all-{vparam}"][i][:, :, resp_win].mean(axis=2)
+            cv = np.std(mean_trial, axis=0) / np.mean(mean_trial, axis=0)
+            fano = np.var(mean_trial, axis=0) / np.mean(mean_trial, axis=0)
+
+            CV_coef[f"{v}-{vparam}"].append(cv)
+            fano_factor[f"{v}-{vparam}"].append(fano)
+        CV_coef[f"{v}-{vparam}"] = np.concatenate(CV_coef[f"{v}-{vparam}"])
+        fano_factor[f"{v}-{vparam}"] = np.concatenate(fano_factor[f"{v}-{vparam}"])
+        print(nb_neurons)
+
+#%% Gain CV coefficient, fano factor
+
+from scipy.optimize import minimize
+from scipy import stats
+
+# fitting window
+t_cond = ep.t > -0.1
+
+# baseline window
+baselineCond = (ep.t > -0.1) & (ep.t < 0)
+
+resp_win = (ep.t > 0.2) & (ep.t < 1.5)
+CV_coef = {f"{v}-{vparam}" : [] for v, vparam in product(viruses, vparam_values)}
+fano_factor = {f"{v}-{vparam}" : [] for v, vparam in product(viruses, vparam_values)}
+gains = {f"{v}-{vparam}" : [] for v, vparam in product(viruses, vparam_values)}
+
+
+for v in viruses:
+    for vparam in vparam_values:
+
+        nb_neurons = 0
+        print(f"Processing {v} - {vparam} ...")
+
+        for i in range(len(means[f"{v}-all-{vparam}"])):
+
+            nb_neurons += means[f"{v}-all-{vparam}"][i].shape[1]
+
+            trials = means[f"{v}-all-{vparam}"][i][:, :, resp_win]
+            cv = np.std(trials, axis=0).mean(axis=1) / np.mean(trials, axis=0).mean(axis=1)
+            fano = np.var(trials, axis=0).mean(axis=1) /  np.mean(trials, axis=0).mean(axis=1)
+
+            CV_coef[f"{v}-{vparam}"].append(cv)
+            fano_factor[f"{v}-{vparam}"].append(fano)
+        CV_coef[f"{v}-{vparam}"] = np.concatenate(CV_coef[f"{v}-{vparam}"])
+        fano_factor[f"{v}-{vparam}"] = np.concatenate(fano_factor[f"{v}-{vparam}"])
+        print(nb_neurons)
+
+#%%
+color_virus = {'sgRosa' : 'grey', 
+               'sgCnr1': "darkred"}
+xdispersion = 0.5
+
+fig, AX = pt.figure(axes=(5, 1))
+
+for i, vparam in enumerate(vparam_values):
+
+    for k, v in enumerate(viruses):
+        pt.bar([np.mean(CV_coef[f"{v}-{vparam}"])], x=[k], sy=np.std(CV_coef[f"{v}-{vparam}"]), ax=AX[i], color=color_virus[v])
+        """ pt.scatter(np.ones(len(CV_coef[f"{v}-{vparam}"]))*k+np.random.rand(len(CV_coef[f"{v}-{vparam}"]))*xdispersion-xdispersion/2, 
+                   CV_coef[f"{v}-{vparam}"], ax=AX[i], color='black', alpha=0.5) """
+
+    pt.annotate(AX[i], '%s=%.0f ' % (varied_parameter, vparam), (0.5, 1.1), ha='center')
+    pt.set_plot(AX[i], ylabel='CV' if i==0 else '')
+    AX[i].set_xticks([0, 1], viruses, fontsize=7)
+
+fig, AX = pt.figure(axes=(5, 1))
+
+for i, vparam in enumerate(vparam_values):
+
+    for k, v in enumerate(viruses):
+        pt.violin(CV_coef[f"{v}-{vparam}"], x=k*1, ax=AX[i], color=color_virus[v])
+    
+    pt.annotate(AX[i], '%s=%.0f ' % (varied_parameter, vparam), (0.5, 1.1), ha='center')
+    pt.set_plot(AX[i], ylabel='CV' if i==0 else '')
+    AX[i].set_xticks([0, 1], viruses, fontsize=7)
+
+#%%
+color_virus = {'sgRosa' : 'grey', 
+               'sgCnr1': "darkred"}
+xdispersion = 0.5
+
+fig, AX = pt.figure(axes=(5, 1))
+
+for i, vparam in enumerate(vparam_values):
+
+    for k, v in enumerate(viruses):
+        pt.bar([np.mean(fano_factor[f"{v}-{vparam}"])], x=[k], sy=np.std(fano_factor[f"{v}-{vparam}"]), ax=AX[i], color=color_virus[v])
+        """ pt.scatter(np.ones(len(fano_factor[f"{v}-{vparam}"]))*k+np.random.rand(len(fano_factor[f"{v}-{vparam}"]))*xdispersion-xdispersion/2, 
+                   fano_factor[f"{v}-{vparam}"], ax=AX[i], color='black', alpha=0.5) """
+
+    pt.annotate(AX[i], '%s=%.0f ' % (varied_parameter, vparam), (0.5, 1.1), ha='center')
+    pt.set_plot(AX[i], ylabel='Fano Factor' if i==0 else '')
+    AX[i].set_xticks([0, 1], viruses, fontsize=7)
+
+fig, AX = pt.figure(axes=(5, 1))
+
+for i, vparam in enumerate(vparam_values):
+
+    for k, v in enumerate(viruses):
+        pt.violin(fano_factor[f"{v}-{vparam}"], x=k*1, ax=AX[i], color=color_virus[v])
+    
+    pt.annotate(AX[i], '%s=%.0f ' % (varied_parameter, vparam), (0.5, 1.1), ha='center')
+    pt.set_plot(AX[i], ylabel='Fano Factor' if i==0 else '')
+    AX[i].set_xticks([0, 1], viruses, fontsize=7)
+
+
+
+# %%
+from scipy.optimize import minimize
+from scipy import stats
+
+# fitting window
+t_cond = ep.t > -0.1
+
+# baseline window
+baselineCond = (ep.t > -0.1) & (ep.t < 0)
+
+gains = {}
+
+for virus in ['sgRosa', 'sgCnr1']:
+
+    gains[virus] = {}
+
+    for img_id in [1.,2.,3.,4.,5.]:
+
+        gains[virus][img_id] = []
+
+        run_sessions   = means[f'{virus}-run-{img_id}']
+        still_sessions = means[f'{virus}-still-{img_id}']
+
+        # loop over sessions
+        for run_data, still_data in zip(run_sessions, still_sessions):
+
+            # shape = (episodes, neurons, time)
+
+            nROIs = min(run_data.shape[1],
+                        still_data.shape[1])
+
+            for roi in range(nROIs):
+
+                # average across episodes
+                run_trace = np.mean(run_data[:, roi, :], axis=0)
+                still_trace = np.mean(still_data[:, roi, :], axis=0)
+
+                # baseline subtraction
+                run_trace -= np.mean(run_trace[baselineCond])
+                still_trace -= np.mean(still_trace[baselineCond])
+
+                # skip flat traces
+                if np.std(still_trace[t_cond]) < 1e-10:
+                    continue
+
+                # multiplicative gain fit
+                def to_minimize(x):
+
+                    return np.sum(
+                        (x[0] * still_trace[t_cond]
+                         - run_trace[t_cond])**2
+                    )
+
+                res = minimize(to_minimize, [1.0])
+
+                gains[virus][img_id].append(res.x[0])
+
+# %%
+fig, ax = plt.subplots(1,5, figsize=(12,3))
+
+for i, img_id in enumerate([1.,2.,3.,4.,5.]):
+
+    rosa = gains['sgRosa'][img_id]
+    cnr1 = gains['sgCnr1'][img_id]
+
+    ax[i].bar(
+        [0,1],
+        [np.mean(rosa), np.mean(cnr1)],
+        yerr=[stats.sem(rosa), stats.sem(cnr1)],
+        color=['grey','darkred']
+    )
+
+    ax[i].set_xticks([0,1])
+    ax[i].set_xticklabels(['sgRosa','sgCnr1'])
+    ax[i].set_ylabel('gain')
+    ax[i].set_title(f'Image {img_id}')
+
+plt.tight_layout()
+
+# %%
+fig, ax = plt.subplots(1,5, figsize=(14,3), sharey=True)
+
+all_values = []
+
+# first pass -> gather all gains for common y-limits
+for virus in ['sgRosa', 'sgCnr1']:
+    for img_id in [1.,2.,3.,4.,5.]:
+        all_values.extend(gains[virus][img_id])
+
+ymin = np.min(all_values)
+ymax = np.max(all_values)
+
+for i, img_id in enumerate([1.,2.,3.,4.,5.]):
+
+    rosa = np.array(gains['sgRosa'][img_id])
+    cnr1 = np.array(gains['sgCnr1'][img_id])
+
+    # bars
+    ax[i].bar(
+        0,
+        np.mean(rosa),
+        yerr=stats.sem(rosa),
+        color='grey',
+        alpha=0.6,
+        width=0.6
+    )
+
+    ax[i].bar(
+        1,
+        np.mean(cnr1),
+        yerr=stats.sem(cnr1),
+        color='darkred',
+        alpha=0.6,
+        width=0.6
+    )
+
+    # scatter points with jitter
+    jitter1 = np.random.normal(0, 0.05, size=len(rosa))
+    jitter2 = np.random.normal(0, 0.05, size=len(cnr1))
+
+    ax[i].scatter(
+        np.zeros(len(rosa)) + jitter1,
+        rosa,
+        color='black',
+        s=12,
+        alpha=0.7
+    )
+
+    ax[i].scatter(
+        np.ones(len(cnr1)) + jitter2,
+        cnr1,
+        color='black',
+        s=12,
+        alpha=0.7
+    )
+
+    ax[i].set_xticks([0,1])
+    ax[i].set_xticklabels(['sgRosa','sgCnr1'])
+
+    ax[i].set_title(f'Image {img_id}')
+
+    ax[i].set_ylim([ymin-0.1, ymax+0.1])
+
+    if i == 0:
+        ax[i].set_ylabel('gain')
+
+plt.tight_layout()
+# %%
+plt.hist(gains['sgRosa'][1.0], bins=50)
+plt.xlabel('gain')
+plt.ylabel('count')

@@ -16,10 +16,11 @@ import physion.utils.plot_tools as pt
 from physion.analysis.read_NWB import Data
 from physion.analysis.episodes.build import EpisodeData
 pt.set_style('ticks')
-
+import datetime
 
 # %% [markdown]
 # ## Load data
+
 
 # %%
 # load a datafile
@@ -57,6 +58,7 @@ ep= EpisodeData(data, protocol_name='Natural-Images-4-repeats',
 
 def build_X_y(ep, averaging_window=[2.5, 3.5]):
 
+    
     averaging_window_cond = (ep.t> averaging_window[0])& (ep.t<averaging_window[1])
     X = np.zeros((ep.dFoF.shape[0], ep.dFoF.shape[1])) # list of matrice responses (Nrois, Ntrials) 
 
@@ -71,7 +73,9 @@ def build_X_y(ep, averaging_window=[2.5, 3.5]):
         i+=np.sum(pattern_cond)
 
     return X, y
+
 X, y = build_X_y(ep, averaging_window=[2.5, 3.5])
+
 #%%
 # normalization of input data
 normed=True
@@ -254,24 +258,31 @@ DATASET["virus"], DATASET["accuracies"] = [], []
 
 for filename in DATASET['files']: # loop over files if you want to test multiple sessions
     data = Data(filename)
-    data.build_dFoF(**dFoF_options, verbose=False)
-    ep= EpisodeData(data, protocol_name='Natural-Images-4-repeats',
-                    quantities =['dFoF'], prestim_duration=0)  
-    X, y = build_X_y(ep)
-    accuracies = []
-    for random_state in range(nSeed):
-        X_train, X_test, y_train, y_test = train_test_split(X, y,
-                                                    test_size=0.5,
-                                                    random_state=random_state,
-                                                    stratify=y)
-        if denoising:
-            X_train, y_train = average_per_class(X_train, y_train)
-        model.fit(X_train, y_train)
-        y_pred = model.predict(X_test)
-        score=accuracy_score(y_test, y_pred)
-        accuracies.append(score)
-    DATASET["accuracies"].append(np.mean(accuracies))
-    DATASET["virus"].append(data.nwbfile.virus)
+
+    #if data.nwbfile.session_start_time.date() > datetime.date(2026, 4, 1):
+    if True:
+        
+        data.build_dFoF(**dFoF_options, verbose=False)
+        ep= EpisodeData(data, protocol_name='Natural-Images-4-repeats',
+                        quantities =['dFoF'], prestim_duration=0)  
+        X, y = build_X_y(ep, averaging_window)
+        accuracies = []
+        for random_state in range(nSeed):
+            X_train, X_test, y_train, y_test = train_test_split(X, y,
+                                                        test_size=0.5,
+                                                        random_state=random_state,
+                                                        stratify=y)
+            if denoising:
+                X_train, y_train = average_per_class(X_train, y_train)
+            model.fit(X_train, y_train)
+            y_pred = model.predict(X_test)
+            score=accuracy_score(y_test, y_pred)
+            accuracies.append(score)
+        DATASET["accuracies"].append(np.mean(accuracies))
+        DATASET["virus"].append(data.nwbfile.virus)
+    else :
+        DATASET["accuracies"].append(np.nan)
+        DATASET["virus"].append(data.nwbfile.virus)
 # %%
 
 DATASET["accuracies"] =np.array(DATASET["accuracies"])
@@ -281,18 +292,10 @@ cond_kd = np.array(DATASET["virus"]) == 'syn-Gcamp6s + sgCnr1'
     
 
 fig, ax = pt.figure(ax_scale=(0.8,1.))
-ax.bar([0], [DATASET["accuracies"][cond_wt].mean()], yerr=[DATASET["accuracies"][cond_wt].std()], label='wt,score=%.2f' % DATASET["accuracies"][cond_wt].mean())
-ax.bar([1], [DATASET["accuracies"][cond_kd].mean()], yerr=[DATASET["accuracies"][cond_kd].std()], label='kd, score=%.2f' % DATASET["accuracies"][cond_kd].mean())
+ax.bar([0], [np.nanmean(DATASET["accuracies"][cond_wt])], yerr=[np.nanstd(DATASET["accuracies"][cond_wt])], label='wt,score=%.2f' % np.nanmean(DATASET["accuracies"][cond_wt]))
+ax.bar([1], [np.nanmean(DATASET["accuracies"][cond_kd])], yerr=[np.nanstd(DATASET["accuracies"][cond_kd])], label='kd, score=%.2f' % np.nanmean(DATASET["accuracies"][cond_kd]))
 ax.scatter(np.zeros(sum(cond_wt)), DATASET["accuracies"][cond_wt], color='grey')
 ax.scatter(np.ones(sum(cond_kd)), DATASET["accuracies"][cond_kd], color='grey')
 ax.plot([-1, 1], [chance, chance], ':', label='chance level, %.2f' % chance)
 ax.legend(loc=(1.,0.0), frameon=False)
 pt.set_plot(ax, ylabel='accuracy', xticks_labels=[])
-
-
-
-
-
-
-
-# %%
