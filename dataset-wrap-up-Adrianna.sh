@@ -1,9 +1,10 @@
 # for dataset in Asahi;
-for dataset in PN_cond-NDNF-CB1_WT-vs-KD;
+#for dataset in PN_cond-NDNF-CB1_WT-vs-KD;
+for dataset in PN
 do 
 
     ################## assemble dataset to NWB files #################
-    if false;
+    if true;
     then
         cd physion/src
         # build NWB files
@@ -27,8 +28,9 @@ do
         }
         """ > dFoF-settings.json
 
+        #for protocol in Asahi;
         # for protocol in vision-survey Asahi surround-mod
-        for protocol in Asahi;
+        for protocol in vision-survey surround-mod
         do
             cd physion/src
             python -m physion.analysis.summary_pdf ~/DATA/Adrianna/$dataset/DataTable.xlsx -dFoF ../../dFoF-settings.json --for_protocol $protocol
