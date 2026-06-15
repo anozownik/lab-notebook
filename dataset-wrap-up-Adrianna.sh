@@ -4,11 +4,17 @@ for dataset in PN
 do 
 
     ################## assemble dataset to NWB files #################
-    if true;
+    if false;
     then
         cd physion/src
         # build NWB files
         python -m physion.assembling.nwb ~/DATA/Adrianna/$dataset/DataTable.xlsx
+        cd ../..
+    fi
+
+    if false;
+    then
+        cd physion/src
         # fill the analysis column
         python -m physion.assembling.dataset fill-analysis ~/DATA/Adrianna/$dataset/DataTable.xlsx
         cd ../..
@@ -30,7 +36,7 @@ do
 
         #for protocol in Asahi;
         # for protocol in vision-survey Asahi surround-mod
-        for protocol in vision-survey surround-mod
+        for protocol in survey surround-mod 
         do
             cd physion/src
             python -m physion.analysis.summary_pdf ~/DATA/Adrianna/$dataset/DataTable.xlsx -dFoF ../../dFoF-settings.json --for_protocol $protocol
