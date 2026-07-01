@@ -28,16 +28,6 @@ import params
 
 # %%
 
-dFoF_options = dict(\
-    method_for_F0='sliding_minmax',
-    #method_for_F0='sliding_percentile',
-    #method_for_F0='percentile', #more strict
-    sliding_window= 300,
-    percentile=10,
-    roi_to_neuropil_fluo_inclusion_factor=1.1,
-    neuropil_correction_factor=0.7, 
-    with_computed_neuropil_fact=True)
-
 def build_X_y(ep, averaging_window=[2.5, 3.5], evokedStats=None):
 
     if evokedStats is None:
@@ -72,7 +62,7 @@ def average_per_class(X, y):
 # %%
 nSeed = 20
 denoising = True
-averaging_window = [2.5, 3] # seconds, interval to average to get single activation level per neuron
+averaging_window = [2, 3] # seconds, interval to average to get single activation level per neuron
 
 
 model = svm.SVC(kernel='linear') #NearestCentroid() #KNeighborsClassifier(n_neighbors=2)
@@ -87,6 +77,7 @@ DATASET = physion.analysis.read_NWB.scan_folder_for_NWBfiles(folder,
 
 # %%
 DATASET["virus"], DATASET["accuracies"], DATASET["nb_neurons"], DATASET["nb_responsive_neurons"] = [], [], [], []
+DATASET["alpha"] = []
 
 for filename in DATASET['files']: # loop over files if you want to test multiple sessions
     data = Data(filename)
@@ -94,11 +85,12 @@ for filename in DATASET['files']: # loop over files if you want to test multiple
     #if data.nwbfile.session_start_time.date() > datetime.date(2026, 4, 1):
     if True:
         
-        data.build_dFoF(**dFoF_options, verbose=False)
+        data.build_dFoF(**params.dFoF_options, verbose=False)
+        DATASET["alpha"].append(data.neuropil_correction_factor)
         ep= EpisodeData(data, protocol_name=pname,
                         quantities =['dFoF'], prestim_duration=0)
         
-        """ evokedStats = ep.pre_post_statistics(\
+        evokedStats = ep.pre_post_statistics(\
                                 params.stat_test_props,
                                 response_args=params.response_args,
                                 response_significance_threshold=params.response_significance_threshold,
@@ -106,7 +98,7 @@ for filename in DATASET['files']: # loop over files if you want to test multiple
                                 repetition_keys=['Image-ID', 'repeat'],
                                 verbose=False
                                 ) 
-        DATASET["nb_responsive_neurons"].append(np.sum(evokedStats['significant'])) """
+        DATASET["nb_responsive_neurons"].append(np.sum(evokedStats['significant']))
         
         DATASET["nb_neurons"].append(ep.dFoF.shape[1])
 
@@ -137,7 +129,6 @@ DATASET["accuracies"] = np.array(DATASET["accuracies"])
 chance= 1./len(np.unique(y))
 cond_wt = np.array(DATASET["virus"]) == 'syn-Gcamp6s + sgRosa'
 cond_kd = np.array(DATASET["virus"]) == 'syn-Gcamp6s + sgCnr1'
-    
 
 fig, ax = pt.figure(ax_scale=(0.8,1.))
 ax.bar([0], [np.nanmean(DATASET["accuracies"][cond_wt])], yerr=[np.nanstd(DATASET["accuracies"][cond_wt])], label='wt,score=%.2f' % np.nanmean(DATASET["accuracies"][cond_wt]))
@@ -185,6 +176,18 @@ df = df.drop(columns=['nb_neurons'])
 #(df[df['virus'] == 'syn-Gcamp6s + sgCnr1']).drop(columns=['virus']).sort_values(by=['subjects', 'session'])
 
 #%%
+DATASET['session'] = np.array([os.path.basename(file)[:-4] for file in DATASET['files']])
+if 'nb_responsive_neurons' in DATASET.keys():
+    del DATASET['nb_responsive_neurons']
+
+df = pd.DataFrame(DATASET).drop(columns=['protocol_ids', 'protocols','files', 'dates']).set_index('session')
+
+df.sort_values(by=['virus', 'subjects', 'session'])
+
+path = r"Y:\raw-imaging\Adrianna\experiments\analysis\decoder_results_final_sessions.xlsx"
+#df.to_excel(path, index=True)
+
+#%%
 
 from sklearn.linear_model import LinearRegression
 viruses = np.unique(DATASET['virus'])
@@ -204,18 +207,100 @@ model_kt = LinearRegression()
 model_kt.fit(DATASET['nb_neurons'][DATASET['virus'] == 'syn-Gcamp6s + sgCnr1'].reshape(-1,1), DATASET['accuracies'][DATASET['virus'] == 'syn-Gcamp6s + sgCnr1'])
 
 fig, ax = pt.figure(figsize=(3.,3.))
-DATASET['virus']
+
 for i, virus in enumerate(viruses):
     ax.scatter(DATASET['nb_neurons'][DATASET['virus'] == virus], DATASET['accuracies'][DATASET['virus'] == virus], 
                color=color_virus[virus], alpha=0.5, label=virus)
 pt.set_plot(ax, xlabel='Nb neurons', ylabel='accuracy')
 
+x = np.linspace(np.min(DATASET['nb_neurons']), np.max(DATASET['nb_neurons']), 100)
+y =  model.coef_ * x + model.intercept_
+ax.plot(x, y, color='black')
+pt.annotate(ax, 'y=%.3f *x + %.2f' % (model.coef_, model.intercept_), xy=(0.7, 1.1), ha='center')
+
 """ x = np.linspace(np.min(DATASET['nb_neurons']), np.max(DATASET['nb_neurons']), 100)
+
+y =  model_wt.coef_ * x + model_wt.intercept_
+ax.plot(x, y, color=color_virus['syn-Gcamp6s + sgRosa'])
+y =  model_kt.coef_ * x + model_kt.intercept_
+ax.plot(x, y, color=color_virus['syn-Gcamp6s + sgCnr1'])
+pt.annotate(ax, 'y_wt=%.3f *x + %.2f\ny_kt=%.3f *x + %.2f' % (model_wt.coef_, model_wt.intercept_, model_kt.coef_, model_kt.intercept_), 
+            xy=(0.7, 1.1), ha='center', fontsize=5) """
+
+#%%
+
+from sklearn.linear_model import LinearRegression
+viruses = np.unique(DATASET['virus'])
+color_virus = {'syn-Gcamp6s + sgRosa' : 'grey', 
+               'syn-Gcamp6s + sgCnr1': "darkred"}
+
+DATASET['alpha'] = np.array(DATASET['alpha'])
+DATASET['virus'] = np.array(DATASET['virus'])
+
+model = LinearRegression()
+model.fit(DATASET['alpha'].reshape(-1, 1), DATASET['accuracies'])
+
+model_wt = LinearRegression()
+model_wt.fit(DATASET['alpha'][DATASET['virus'] == 'syn-Gcamp6s + sgRosa'].reshape(-1,1), DATASET['accuracies'][DATASET['virus'] == 'syn-Gcamp6s + sgRosa'])
+
+model_kt = LinearRegression()
+model_kt.fit(DATASET['alpha'][DATASET['virus'] == 'syn-Gcamp6s + sgCnr1'].reshape(-1,1), DATASET['accuracies'][DATASET['virus'] == 'syn-Gcamp6s + sgCnr1'])
+
+fig, ax = pt.figure(figsize=(3.,3.))
+
+for i, virus in enumerate(viruses):
+    ax.scatter(DATASET['alpha'][DATASET['virus'] == virus], DATASET['accuracies'][DATASET['virus'] == virus], 
+               color=color_virus[virus], alpha=0.5, label=virus)
+pt.set_plot(ax, xlabel='alphas', ylabel='accuracy')
+
+""" x = np.linspace(np.min(DATASET['alpha']), np.max(DATASET['alpha']), 100)
 y =  model.coef_ * x + model.intercept_
 ax.plot(x, y, color='black')
 pt.annotate(ax, 'y=%.3f *x + %.2f' % (model.coef_, model.intercept_), xy=(0.7, 1.1), ha='center') """
 
-x = np.linspace(np.min(DATASET['nb_neurons']), np.max(DATASET['nb_neurons']), 100)
+
+x = np.linspace(np.min(DATASET['alpha']), np.max(DATASET['alpha']), 100)
+
+y =  model_wt.coef_ * x + model_wt.intercept_
+ax.plot(x, y, color=color_virus['syn-Gcamp6s + sgRosa'])
+y =  model_kt.coef_ * x + model_kt.intercept_
+ax.plot(x, y, color=color_virus['syn-Gcamp6s + sgCnr1'])
+pt.annotate(ax, 'y_wt=%.3f *x + %.2f\ny_kt=%.3f *x + %.2f' % (model_wt.coef_, model_wt.intercept_, model_kt.coef_, model_kt.intercept_), 
+            xy=(0.7, 1.1), ha='center', fontsize=5)
+
+#%%
+from sklearn.linear_model import LinearRegression
+viruses = np.unique(DATASET['virus'])
+color_virus = {'syn-Gcamp6s + sgRosa' : 'grey', 
+               'syn-Gcamp6s + sgCnr1': "darkred"}
+
+DATASET['alpha'] = np.array(DATASET['alpha'])
+DATASET['virus'] = np.array(DATASET['virus'])
+DATASET['recording_order'] = np.arange(len(DATASET['virus']))
+
+model = LinearRegression()
+model.fit(DATASET['recording_order'].reshape(-1, 1), DATASET['alpha'])
+
+model_wt = LinearRegression()
+model_wt.fit(DATASET['recording_order'][DATASET['virus'] == 'syn-Gcamp6s + sgRosa'].reshape(-1,1), DATASET['alpha'][DATASET['virus'] == 'syn-Gcamp6s + sgRosa'])
+
+model_kt = LinearRegression()
+model_kt.fit(DATASET['recording_order'][DATASET['virus'] == 'syn-Gcamp6s + sgCnr1'].reshape(-1,1), DATASET['alpha'][DATASET['virus'] == 'syn-Gcamp6s + sgCnr1'])
+
+fig, ax = pt.figure(figsize=(3.,3.))
+
+for i, virus in enumerate(viruses):
+    ax.scatter(DATASET['recording_order'][DATASET['virus'] == virus], DATASET['alpha'][DATASET['virus'] == virus], 
+               color=color_virus[virus], alpha=0.5, label=virus)
+pt.set_plot(ax, xlabel='recording order', ylabel='alphas')
+
+""" x = np.linspace(np.min(DATASET['recording_order']), np.max(DATASET['recording_order']), 100)
+y =  model.coef_ * x + model.intercept_
+ax.plot(x, y, color='black')
+pt.annotate(ax, 'y=%.3f *x + %.2f' % (model.coef_, model.intercept_), xy=(0.7, 1.1), ha='center') """
+
+
+x = np.linspace(np.min(DATASET['recording_order']), np.max(DATASET['recording_order']), 100)
 
 y =  model_wt.coef_ * x + model_wt.intercept_
 ax.plot(x, y, color=color_virus['syn-Gcamp6s + sgRosa'])
