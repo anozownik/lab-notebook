@@ -1,11 +1,9 @@
 # custom dFoF:
 dFoF_options = dict(\
     method_for_F0='sliding_minmax',
-    #method_for_F0='sliding_percentile',
-    #method_for_F0='percentile', #more strict
+    roi_to_neuropil_fluo_inclusion_factor=1.6,
+    roi_to_neuropil_fluo_inclusion_factor_metric='std',
     sliding_window= 300,
-    percentile=10,
-    roi_to_neuropil_fluo_inclusion_factor=1.1,
     neuropil_correction_factor=0.7, 
     with_computed_neuropil_fact=True)
 
