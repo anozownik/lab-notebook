@@ -527,3 +527,31 @@ AX.set_xticklabels(['sgRosa','sgCnr1'])
 AX.set_ylabel('gain')
 pt.annotate(AX, f'WT: N={len(rosa)} mice\nKD: N={len(cnr1)} mice', xy=(0.5, 1), xycoords='axes fraction', ha='right', fontsize=4)
 plt.tight_layout()
+
+#%%
+
+from sklearn.linear_model import LinearRegression
+color_virus = {'sgRosa' : 'grey', 
+               'sgCnr1': "darkred"}
+
+
+nb_neurons = {}
+for v in viruses:
+    nb_neurons[v] = [el.shape[1] for el in means[f"{v}-all"]]
+
+model_wt = LinearRegression()
+model_wt.fit(np.array(nb_neurons['sgRosa']).reshape(-1,1), percentages['sgRosa'])
+
+model_kt = LinearRegression()
+model_kt.fit(np.array(nb_neurons['sgCnr1']).reshape(-1,1), percentages['sgCnr1'])
+
+
+fig, ax = pt.figure(figsize=(3.,3.))
+for i, (virus, model) in enumerate(zip(viruses, [model_wt, model_kt])):
+    ax.scatter(nb_neurons[virus], percentages[virus], color=color_virus[virus], alpha=0.5)
+
+    """ x = np.linspace(np.min(nb_neurons[virus]), np.max(nb_neurons[virus]), 100)
+    y =  model.coef_ * x + model.intercept_
+    ax.plot(x, y, color='black') """
+
+pt.set_plot(ax, xlabel='Nb neurons', ylabel='% of resp.')
