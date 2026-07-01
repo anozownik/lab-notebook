@@ -40,7 +40,7 @@ state_metric = 'speed' # 'speed' or 'pupil' or 'speed & pupil'
 varied_parameter = 'Image-ID'
 COMPUTE_RELIABILITY = False
 stat_test_props = params.stat_test_props
-stat_test_props['interval_post'] = [1, 2.8]
+stat_test_props['interval_post'] = [0.5, 1.5]
 
 ep_props = dict(quantities=['dFoF', 'running_speed'],
                 prestim_duration=1.5,
