@@ -38,6 +38,9 @@ viruses = ['sgRosa', 'sgCnr1']
 state_metric = 'speed' # 'speed' or 'pupil' or 'speed & pupil'
 varied_parameter = 'angle'
 
+stat_test_props = params.stat_test_props
+stat_test_props['interval_post'] = [0.5, 1.5]
+
 ep_props = dict(quantities=['dFoF', 'running_speed'],
                 prestim_duration=1.5,
                 dt_sampling=params.dt_sampling)
@@ -100,7 +103,7 @@ for i, filename in enumerate(DATASET['files']):
                 ######### 2) identify visually-responsive cells #########
 
                 evokedStats = ep.pre_post_statistics(\
-                                                    params.stat_test_props,
+                                                    stat_test_props,
                                                     response_args=params.response_args,
                                                     response_significance_threshold=params.response_significance_threshold,
                                                     loop_over_cells=True,
