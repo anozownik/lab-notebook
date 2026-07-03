@@ -28,7 +28,7 @@ pname = 'Natural-Images-4-repeats'
 neuron = 'PN_cond-NDNF-CB1_WT-vs-KD'  # 'PN_cond-NDNF-CB1_WT-vs-KD' or 'NDNF-cond-CB1'
 
 folder = os.path.join(os.path.expanduser('~'), 'DATA', 'Adrianna',
-                        neuron, 'NWBs')
+                        neuron, 'final_NWBs')
 
 DATASET = physion.analysis.read_NWB.scan_folder_for_NWBfiles(folder,
                                         for_protocol=pname)
@@ -39,11 +39,18 @@ viruses = ['sgRosa', 'sgCnr1']
 state_metric = 'speed' # 'speed' or 'pupil' or 'speed & pupil'
 varied_parameter = 'Image-ID'
 COMPUTE_RELIABILITY = False
+
 stat_test_props = params.stat_test_props
 stat_test_props['interval_post'] = [0.5, 1.5]
 
+pos_stat_test_props = stat_test_props.copy()
+pos_stat_test_props['sign'] = 'positive'
+
+neg_stat_test_props = stat_test_props.copy()
+neg_stat_test_props['sign'] = 'negative'
+
 ep_props = dict(quantities=['dFoF', 'running_speed'],
-                prestim_duration=1.5,
+                #prestim_duration=1.5,
                 dt_sampling=params.dt_sampling)
 
 included_mice = None
@@ -107,7 +114,7 @@ for i, filename in enumerate(DATASET['files']):
                 ######### 2) identify visually-responsive cells #########
 
                 evokedStats = ep.pre_post_statistics(\
-                                                    params.stat_test_props,
+                                                    stat_test_props,
                                                     response_args=params.response_args,
                                                     response_significance_threshold=params.response_significance_threshold,
                                                     loop_over_cells=True,
@@ -116,7 +123,7 @@ for i, filename in enumerate(DATASET['files']):
                                                     )
                 
                 pos_evokedStats = ep.pre_post_statistics(\
-                                                        params.pos_stat_test_props,
+                                                        pos_stat_test_props,
                                                         response_args=params.response_args,
                                                         response_significance_threshold=params.response_significance_threshold,
                                                         loop_over_cells=True,
@@ -125,7 +132,7 @@ for i, filename in enumerate(DATASET['files']):
                                                         )
                 
                 neg_evokedStats = ep.pre_post_statistics(\
-                                                        params.neg_stat_test_props,
+                                                        neg_stat_test_props,
                                                         response_args=params.response_args,
                                                         response_significance_threshold=params.response_significance_threshold,
                                                         loop_over_cells=True,
@@ -254,7 +261,7 @@ fig, AX = pt_fcts.plot_average_response(ep.t, means,
 #plt.savefig(os.path.join(figurepath+firgurename), transparent=True, format='svg')
 
 #%% Averaged dF/F0 with baseline substracted over responsive ROIs and over episodes across virus and behavioral states (std over sessions)
-baselineCond = (ep.t>-0.1) & (ep.t<0)
+baselineCond = (ep.t<0)
 
 fig, AX = pt_fcts.plot_average_response(ep.t, means, 
                                         viruses, states_names, [], varied_parameter, 
@@ -268,7 +275,7 @@ fig, AX = pt_fcts.pie_chart_responsive_neurons(percentages, viruses, [])
 #plt.savefig(os.path.join(figurepath+firgurename),transparent=True, format='svg')
 
 #%% POSITIVE RESPONSES: Averaged dF/F0 with baseline substracted over responsive ROIs and over episodes across virus and behavioral states (std over sessions)
-baselineCond = (ep.t>-0.1) & (ep.t<0)
+baselineCond = (ep.t<0)
 
 firgurename = 'dfof_beh_mod_onlypos_natimg'+ neuron + '.svg'
 figurepath = '/Users/macbookair/work/Figures/Natural_images/'
@@ -466,13 +473,15 @@ for virus in ['sgRosa', 'sgCnr1']:
 
     run_sessions   = means[f'{virus}-run']
     still_sessions = means[f'{virus}-still']
+    run_sessions   = pos_means[f'{virus}-run']
+    still_sessions = pos_means[f'{virus}-still']
     run_mice = np.array(included_mice[f'{virus}-run']) 
     still_mice = np.array(included_mice[f'{virus}-still'])
 
     for mouse in np.unique(run_mice):
 
-        run_sessions_mouse = list(compress(means[f'{virus}-run'], run_mice==mouse))
-        still_sessions_mouse = list(compress(means[f'{virus}-still'], still_mice==mouse))
+        run_sessions_mouse = list(compress(pos_means[f'{virus}-run'], run_mice==mouse))
+        still_sessions_mouse = list(compress(pos_means[f'{virus}-still'], still_mice==mouse))
 
         run_sessions_mouse_average = []
         still_sessions_mouse_average = []

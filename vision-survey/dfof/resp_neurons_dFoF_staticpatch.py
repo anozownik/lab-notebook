@@ -27,7 +27,7 @@ pname = "static-patch"
 neuron = 'PN_cond-NDNF-CB1_WT-vs-KD'  # 'PN_cond-NDNF-CB1_WT-vs-KD' or 'NDNF-cond-CB1'
 
 folder = os.path.join(os.path.expanduser('~'), 'DATA', 'Adrianna',
-                        neuron, 'NWBs')
+                        neuron, 'final_NWBs')
 
 DATASET = physion.analysis.read_NWB.scan_folder_for_NWBfiles(folder,
                                         for_protocol=pname)
@@ -40,6 +40,12 @@ varied_parameter = 'angle'
 
 stat_test_props = params.stat_test_props
 stat_test_props['interval_post'] = [0.5, 1.5]
+
+pos_stat_test_props = stat_test_props.copy()
+pos_stat_test_props['sign'] = 'positive'
+
+neg_stat_test_props = stat_test_props.copy()
+neg_stat_test_props['sign'] = 'negative'
 
 ep_props = dict(quantities=['dFoF', 'running_speed'],
                 prestim_duration=1.5,
@@ -112,7 +118,7 @@ for i, filename in enumerate(DATASET['files']):
                                                     )
                 
                 pos_evokedStats = ep.pre_post_statistics(\
-                                                        params.pos_stat_test_props,
+                                                        pos_stat_test_props,
                                                         response_args=params.response_args,
                                                         response_significance_threshold=params.response_significance_threshold,
                                                         loop_over_cells=True,
@@ -121,7 +127,7 @@ for i, filename in enumerate(DATASET['files']):
                                                         )
                 
                 neg_evokedStats = ep.pre_post_statistics(\
-                                                        params.neg_stat_test_props,
+                                                        neg_stat_test_props,
                                                         response_args=params.response_args,
                                                         response_significance_threshold=params.response_significance_threshold,
                                                         loop_over_cells=True,
@@ -189,7 +195,7 @@ fig, AX = pt_fcts.plot_average_response(ep.t, means,
                                         included_mice, params.NMIN_SESSIONS)
 
 #%% Averaged dF/F0 with baseline substracted over responsive ROIs and over episodes across virus and behavioral states (std over sessions)
-baselineCond = (ep.t>-0.1) & (ep.t<0)
+baselineCond = (ep.t<0)
 
 fig, AX = pt_fcts.plot_average_response(ep.t, means, 
                                         viruses, states_names, vparam_values, varied_parameter, 
@@ -201,7 +207,7 @@ fig, AX = pt_fcts.plot_average_response(ep.t, means,
 fig, AX = pt_fcts.pie_chart_responsive_neurons(percentages, viruses, vparam_values)
 
 #%% POSITIVE RESPONSES: Averaged dF/F0 with baseline substracted over responsive ROIs and over episodes across virus and behavioral states (std over sessions)
-baselineCond = (ep.t>-0.1) & (ep.t<0)
+baselineCond = (ep.t<0)
 
 fig, AX = pt_fcts.plot_average_response(ep.t, pos_means, 
                                         viruses, states_names, vparam_values, varied_parameter, 
@@ -217,3 +223,91 @@ fig, AX = pt_fcts.plot_average_response(ep.t, neg_means,
 #%% Pie chart of responsive neurons separated by positive and negative responses
 
 fig, AX = pt_fcts.pie_chart_responsive_neurons_pos_neg(pos_percentages, neg_percentages, viruses, vparam_values)
+
+
+# %% plot gain of arousal modulation by fitting a multiplicative factor to the still condition to explain the run condition
+from scipy.optimize import minimize
+from scipy import stats
+from itertools import compress
+
+# fitting window
+t_cond = ep.t > -0.1
+
+# baseline window
+baselineCond = (ep.t > -0.1) & (ep.t < 0)
+
+gains = {}
+
+for virus in ['sgRosa', 'sgCnr1']:
+
+    for vparam in vparam_values:
+        
+        gains[f'{virus}-{vparam}'] = []
+
+        run_sessions   = pos_means[f'{virus}-run-{vparam}']
+        still_sessions = pos_means[f'{virus}-still-{vparam}']
+        run_mice = np.array(included_mice[f'{virus}-run-{vparam}']) 
+        still_mice = np.array(included_mice[f'{virus}-still-{vparam}'])
+
+        for mouse in np.unique(run_mice):
+
+            run_sessions_mouse = list(compress(pos_means[f'{virus}-run-{vparam}'], run_mice==mouse))
+            still_sessions_mouse = list(compress(pos_means[f'{virus}-still-{vparam}'], still_mice==mouse))
+
+            run_sessions_mouse_average = []
+            still_sessions_mouse_average = []
+
+            # loop over sessions
+            for run_data, still_data in zip(run_sessions_mouse, still_sessions_mouse):
+
+                # average across episodes
+                run_trace = np.mean(run_data, axis=(0, 1))
+                still_trace = np.mean(still_data, axis=(0, 1))
+
+                run_sessions_mouse_average.append(run_trace)
+                still_sessions_mouse_average.append(still_trace)
+
+            run_sessions_mouse_average = np.array(run_sessions_mouse_average)
+            still_sessions_mouse_average = np.array(still_sessions_mouse_average)
+            
+            run_trace = np.mean(run_sessions_mouse_average, axis=0)
+            still_trace = np.mean(still_sessions_mouse_average, axis=0)
+            
+            # baseline subtraction
+            run_trace -= np.mean(run_trace[baselineCond])
+            still_trace -= np.mean(still_trace[baselineCond])
+
+            # skip flat traces
+            if np.std(still_trace[t_cond]) < 1e-10:
+                continue
+
+            # multiplicative gain fit
+            def to_minimize(x):
+
+                return np.sum(
+                    (x[0] * still_trace[t_cond]
+                        - run_trace[t_cond])**2
+                )
+
+            res = minimize(to_minimize, [1.0])
+
+            gains[f'{virus}-{vparam}'].append(res.x[0])
+# %%
+
+for vparam in vparam_values:
+
+    fig, AX = plt.subplots(1, 1, figsize=(2, 2))
+
+    rosa = gains[f'sgRosa-{vparam}']
+    cnr1 = gains[f'sgCnr1-{vparam}']
+
+    AX.bar([0,1],[np.mean(rosa), np.mean(cnr1)],yerr=[stats.sem(rosa), stats.sem(cnr1)],color=['grey','darkred'])
+    AX.scatter(np.ones(len(rosa))*0+np.random.rand(len(rosa))*0.2-0.1, rosa, color='black', alpha=0.5)
+    AX.scatter(np.ones(len(cnr1))*1+np.random.rand(len(cnr1))*0.2-0.1, cnr1, color='black', alpha=0.5)
+
+    AX.set_xticks([0,1])
+    AX.set_xticklabels(['sgRosa','sgCnr1'])
+    AX.set_ylabel('gain')
+    AX.set_title(f'angle {vparam:.2f}', y=1.15)
+    pt.annotate(AX, f'WT: N={len(rosa)} mice\nKD: N={len(cnr1)} mice', xy=(0.5, 1), xycoords='axes fraction', ha='right', fontsize=4)
+    plt.tight_layout()

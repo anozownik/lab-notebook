@@ -13,16 +13,6 @@ stat_test_props = dict(interval_pre=[-1.,0],
                        test='wilcoxon',
                        sign='both')
 
-pos_stat_test_props = dict(interval_pre=[-1.,0],                                   
-                       interval_post=[1.,2.],                                   
-                       test='wilcoxon',
-                       sign ='positive')
-
-neg_stat_test_props = dict(interval_pre=[-1.,0],                                   
-                       interval_post=[1.,2.],                                   
-                       test='wilcoxon',
-                       sign ='negative')
-
 response_significance_threshold = 0.05
 
 # RESPONSE ARGUMENTS --- NATURAL IMAGES ---
