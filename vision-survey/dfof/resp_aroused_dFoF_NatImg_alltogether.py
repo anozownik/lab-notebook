@@ -471,8 +471,6 @@ for virus in ['sgRosa', 'sgCnr1']:
 
     gains[virus] = []
 
-    run_sessions   = means[f'{virus}-run']
-    still_sessions = means[f'{virus}-still']
     run_sessions   = pos_means[f'{virus}-run']
     still_sessions = pos_means[f'{virus}-still']
     run_mice = np.array(included_mice[f'{virus}-run']) 
