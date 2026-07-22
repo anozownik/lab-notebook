@@ -233,7 +233,7 @@ firgurename = 'natimg_average_pos_res_dfof_'+ 'NDNF' + '.svg'
 fig.savefig(os.path.join(savepath_fig, firgurename), transparent=True, format='svg')
 
 #%% 1.b Averaged dF/F0 with baseline substracted over positively responsive ROIs and over episodes across virus and behavioral states (std over sessions)
-baselineCond = (ep.t<0)
+baselineCond = (ep.t>pos_stat_test_props['interval_pre'][0]) & (ep.t<pos_stat_test_props['interval_pre'][1])
 fig, AX = pt_fcts.plot_average_response(ep.t, dFoF_pos, 
                                         viruses, states_names, [], varied_parameter, 
                                         included_mice_pos, params.NMIN_SESSIONS, 
@@ -269,7 +269,7 @@ firgurename = 'natimg_average_neg_res_dfof_' + 'NDNF' + '.svg'
 fig.savefig(os.path.join(savepath_fig, firgurename), transparent=True, format='svg')
 
 #%% 2.b Averaged dF/F0 with baseline substracted over negatively responsive ROIs and over episodes across virus and behavioral states (std over sessions)
-baselineCond = (ep.t<0)
+baselineCond = (ep.t>pos_stat_test_props['interval_pre'][0]) & (ep.t<pos_stat_test_props['interval_pre'][1])
 
 fig, AX = pt_fcts.plot_average_response(ep.t, dFoF_neg, 
                                         viruses, states_names, [], varied_parameter, 
@@ -309,32 +309,33 @@ fig.savefig(os.path.join(savepath_fig, firgurename), transparent=True, format='s
 
 #%% 4. Rasterplots with all reponsive ROIs sorted by mean 
 
-def average_and_concatenate_sessions(arr_to_conc, viruses, states_names):
+def average_and_concatenate_sessions(arr_to_conc_1, arr_to_conc_2, viruses, states_names):
     concatenated = {}
     for v, state in product(viruses, states_names):
         key = f"{v}-{state}"
-        concatenated[key] = np.array([], dtype=float).reshape(0, arr_to_conc[key][0].shape[2])
-        for i in range(len(arr_to_conc[key])):
-            a = np.mean(arr_to_conc[key][i], axis=0)
+        concatenated[key] = np.array([], dtype=float).reshape(0, arr_to_conc_1[key][0].shape[2])
+        for i in range(len(arr_to_conc_1[key])):
+            a = np.mean(arr_to_conc_1[key][i], axis=0)
+            concatenated[key] = np.concatenate((concatenated[key], a), axis=0)
+        for i in range(len(arr_to_conc_2[key])):
+            a = np.mean(arr_to_conc_2[key][i], axis=0)
             concatenated[key] = np.concatenate((concatenated[key], a), axis=0)
     return concatenated
 
-dFoF_means_pos = average_and_concatenate_sessions(dFoF_pos, viruses, states_names)
-dFoF_means_neg = average_and_concatenate_sessions(dFoF_neg, viruses, states_names)
+dFoF_means = average_and_concatenate_sessions(dFoF_pos, dFoF_neg, viruses, states_names)
 
-baselineCond = (ep.t<0)
+baselineCond = (ep.t>pos_stat_test_props['interval_pre'][0]) & (ep.t<pos_stat_test_props['interval_pre'][1])
 response_window = (ep.t>pos_stat_test_props['interval_post'][0]) & (ep.t<pos_stat_test_props['interval_post'][1])
-#response_window = ep.t>0
 
-figurename = 'natimg_rastermap_pos_res_dfof_bsl_sub_'+ 'NDNF' + '.svg'
-fig, AX = pt_fcts.plot_rastermap(dFoF_means_pos, ep, viruses, state_cond='all', 
+figurename = 'natimg_rastermap_res_dfof_bsl_sub_'+ 'NDNF' + '.svg'
+fig, AX = pt_fcts.plot_rastermap(dFoF_means, ep, viruses, state_cond='all', 
                                  baselineSubtraction=True, baselineCond=baselineCond, 
                                  sort_fcts_options=dict(response_window=response_window))
 
 fig.savefig(os.path.join(savepath_fig, figurename), transparent=True, format='svg')
 
-figurename = 'natimg_rastermap_pos_res_dfof_'+ 'NDNF' + '.svg'
-fig, AX = pt_fcts.plot_rastermap(dFoF_means_pos, ep, viruses, state_cond='all',
+figurename = 'natimg_rastermap_res_dfof_'+ 'NDNF' + '.svg'
+fig, AX = pt_fcts.plot_rastermap(dFoF_means, ep, viruses, state_cond='all', 
                                  sort_fcts_options=dict(response_window=response_window))
 
 fig.savefig(os.path.join(savepath_fig, figurename), transparent=True, format='svg')

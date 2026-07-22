@@ -8,6 +8,7 @@ import numpy as np
 from scipy.stats import sem
 import matplotlib.pyplot as plt
 from itertools import product
+import matplotlib.colors as mcolors
 
 # plot variables
 color_virus = {'sgRosa' : 'grey', 
@@ -432,6 +433,12 @@ def plot_rastermap(responses, ep, viruses, state_cond='all',
         if np.max(responses_over_rois[f'{virus}-{state_cond}']) > vmax:
             vmax = np.max(responses_over_rois[f'{virus}-{state_cond}'])
 
+        norm = mcolors.TwoSlopeNorm(
+            vmin=vmin, 
+            vcenter=0.0,
+            vmax=vmax  
+        )
+
     fig, AX = plt.subplots(1, len(viruses), figsize=(10, 5), sharex=True)
 
     for i, virus in enumerate(viruses):
@@ -439,11 +446,16 @@ def plot_rastermap(responses, ep, viruses, state_cond='all',
         idx_sorted = sort_fct(responses_over_rois[f'{virus}-{state_cond}'], **sort_fcts_options)
 
         im = AX[i].pcolormesh(ep.t, np.arange(responses[f'{virus}-{state_cond}'].shape[0]), 
-                              responses_over_rois[f'{virus}-{state_cond}'][idx_sorted, :], vmin=vmin, vmax=vmax, cmap='magma')
+                              responses_over_rois[f'{virus}-{state_cond}'][idx_sorted, :], cmap='PiYG', 
+                              norm=norm)
         AX[i].set_title(f'{virus}-{state_cond}')
 
+        AX[i].vlines(0, 0, responses[f'{virus}-{state_cond}'].shape[0]-0.5, color='k', linewidth=1, linestyle='--')
+
+        AX[i].vlines(ep.time_duration[0], 0, responses[f'{virus}-{state_cond}'].shape[0]-0.5, color='k', linewidth=1, linestyle='--')
+
     fig.subplots_adjust(right=0.8)
-    cbar_ax = fig.add_axes([0.82, 0.3, 0.015, 0.65])
+    cbar_ax = fig.add_axes([0.82, 0.38, 0.007, 0.5])
     fig.colorbar(im, cax=cbar_ax)
 
     if savepath is not None:
