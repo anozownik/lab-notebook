@@ -52,7 +52,11 @@ ep_props = dict(quantities=['dFoF', 'Deconvolved'] ,
                 verbose=False)
 
 savepath_fig = r"Y:\raw-imaging\Adrianna\experiments\analysis\Adrianna\NDNF\figures\natural_images"
-savepath_data = r"Y:\raw-imaging\Adrianna\experiments\analysis\Adrianna\NDNF\excels"
+savepath_excel = r"Y:\raw-imaging\Adrianna\experiments\analysis\Adrianna\NDNF\excels"
+savepath_data = r"Y:\raw-imaging\Adrianna\experiments\analysis\Adrianna\NDNF\data\natural_images"
+os.makedirs(savepath_fig, exist_ok=True)
+os.makedirs(savepath_data, exist_ok=True)
+os.makedirs(savepath_excel, exist_ok=True)
 
 # %% COMPUTATION
 
@@ -207,6 +211,14 @@ dFoF_pos = tools.remove_empty_sessions(dFoF_pos)
 deconvolved_pos = tools.remove_empty_sessions(deconvolved_pos)
 dFoF_neg = tools.remove_empty_sessions(dFoF_neg)
 deconvolved_neg = tools.remove_empty_sessions(deconvolved_neg)
+
+np.save(os.path.join(savepath_data, 'natimg_dFoF_pos.npy'), dFoF_pos)
+np.save(os.path.join(savepath_data, 'natimg_deconvolved_pos.npy'), deconvolved_pos)
+np.save(os.path.join(savepath_data, 'natimg_dFoF_neg.npy'), dFoF_neg)
+np.save(os.path.join(savepath_data, 'natimg_deconvolved_neg.npy'), deconvolved_neg)
+np.save(os.path.join(savepath_data, 'natimg_included_mice_pos.npy'), included_mice_pos)
+np.save(os.path.join(savepath_data, 'natimg_included_mice_neg.npy'), included_mice_neg)
+
 #%% BUILD DATAFRAME
 import pandas as pd 
 
@@ -217,7 +229,7 @@ df['perc_resp_pos'] = df['nb_responsive_neurons_pos'] / df['nb_neurons'] * 100
 df['perc_resp_neg'] = df['nb_responsive_neurons_neg'] / df['nb_neurons'] * 100
 
 excel_filename = 'natimg_summary_data_' + 'NDNF' + '.xlsx'
-df.to_excel(os.path.join(savepath_data, excel_filename))
+df.to_excel(os.path.join(savepath_excel, excel_filename))
 
 df
 
