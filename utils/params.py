@@ -13,6 +13,12 @@ stat_test_props = dict(interval_pre=[-1.,0],
                        test='wilcoxon',
                        sign='both')
 
+interval_post = {'Natural-Images-4-repeats': [0.5, 1.5],
+                 'drifting-gratings': [1., 2.],
+                 'static-patch': [0.5, 1.5],
+                 'moving-dots': [0.5, 1.5],
+                 }
+
 response_significance_threshold = 0.05
 
 # RESPONSE ARGUMENTS --- NATURAL IMAGES ---

@@ -51,6 +51,9 @@ def plot_average_response_no_vparam(t, responses,
     
     fig, AX = pt.figure(axes=(len(states), 1))
 
+    if len(states) == 1:
+        AX = np.reshape(AX, (1))
+
     for j, state in enumerate(states):
         for k, virus in enumerate(viruses):
 
@@ -395,6 +398,53 @@ def rastermap_session(session_id, ep, responses, viruses,
         AX[i].set_title(f'{virus}-{state_cond}')
 
     fig.colorbar(im)
+
+    if savepath is not None:
+        plt.savefig(os.path.join(savepath), transparent=True, format='svg')
+
+    return fig, AX
+
+def sort_rois_by_mean_response(responses, response_window=None):
+    if response_window is None:
+        response_window = np.ones(responses.shape[1], dtype=bool)
+
+    idx_sorted = np.argsort(np.mean(responses[:, response_window], axis=1))
+    return idx_sorted
+
+def plot_rastermap(responses, ep, viruses, state_cond='all', 
+                   baselineSubtraction=False, baselineCond=None,
+                   sort_fct=sort_rois_by_mean_response, sort_fcts_options=dict(response_window=None),
+                   savepath=None):
+    
+    responses_over_rois = {}
+    vmin, vmax = np.inf, -np.inf
+
+    for i, virus in enumerate(viruses):
+
+        if baselineSubtraction :
+            responses_over_rois[f'{virus}-{state_cond}'] = np.subtract(responses[f'{virus}-{state_cond}'].T, 
+                                                                       np.mean(responses[f'{virus}-{state_cond}'][:, baselineCond], axis=1)).T
+        else :
+            responses_over_rois[f'{virus}-{state_cond}'] = responses[f'{virus}-{state_cond}']
+
+        if np.min(responses_over_rois[f'{virus}-{state_cond}']) < vmin:
+            vmin = np.min(responses_over_rois[f'{virus}-{state_cond}'])
+        if np.max(responses_over_rois[f'{virus}-{state_cond}']) > vmax:
+            vmax = np.max(responses_over_rois[f'{virus}-{state_cond}'])
+
+    fig, AX = plt.subplots(1, len(viruses), figsize=(10, 5), sharex=True)
+
+    for i, virus in enumerate(viruses):
+
+        idx_sorted = sort_fct(responses_over_rois[f'{virus}-{state_cond}'], **sort_fcts_options)
+
+        im = AX[i].pcolormesh(ep.t, np.arange(responses[f'{virus}-{state_cond}'].shape[0]), 
+                              responses_over_rois[f'{virus}-{state_cond}'][idx_sorted, :], vmin=vmin, vmax=vmax, cmap='magma')
+        AX[i].set_title(f'{virus}-{state_cond}')
+
+    fig.subplots_adjust(right=0.8)
+    cbar_ax = fig.add_axes([0.82, 0.3, 0.015, 0.65])
+    fig.colorbar(im, cax=cbar_ax)
 
     if savepath is not None:
         plt.savefig(os.path.join(savepath), transparent=True, format='svg')
