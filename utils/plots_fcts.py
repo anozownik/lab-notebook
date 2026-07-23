@@ -412,7 +412,28 @@ def sort_rois_by_mean_response(responses, response_window=None):
     idx_sorted = np.argsort(np.mean(responses[:, response_window], axis=1))
     return idx_sorted
 
-def plot_rastermap(responses, ep, viruses, state_cond='all', 
+def plot_rastermap(responses, ep, viruses, state_cond='all', varied_parameters=[],
+                   baselineSubtraction=False, baselineCond=None,
+                   sort_fct=sort_rois_by_mean_response, sort_fcts_options=dict(response_window=None),
+                   savepath=None):
+    
+    if len(varied_parameters) == 0:
+        fig, AX = plot_rastermap_no_vparam(responses, ep, viruses, state_cond,
+                                           baselineSubtraction, baselineCond,
+                                           sort_fct, sort_fcts_options,
+                                           savepath)
+    else :
+        fig, AX = plot_rastermap_vparam(responses, ep, viruses, state_cond, varied_parameters,
+                                        baselineSubtraction, baselineCond,
+                                        sort_fct, sort_fcts_options,
+                                        savepath)
+
+    if savepath is not None:
+        plt.savefig(os.path.join(savepath), transparent=True, format='svg')
+
+    return fig, AX
+
+def plot_rastermap_no_vparam(responses, ep, viruses, state_cond='all',
                    baselineSubtraction=False, baselineCond=None,
                    sort_fct=sort_rois_by_mean_response, sort_fcts_options=dict(response_window=None),
                    savepath=None):
@@ -457,6 +478,77 @@ def plot_rastermap(responses, ep, viruses, state_cond='all',
     fig.subplots_adjust(right=0.8)
     cbar_ax = fig.add_axes([0.82, 0.38, 0.007, 0.5])
     fig.colorbar(im, cax=cbar_ax)
+
+    if savepath is not None:
+        plt.savefig(os.path.join(savepath), transparent=True, format='svg')
+
+    return fig, AX
+
+def plot_rastermap_vparam(responses, ep, viruses, state_cond='all', varied_parameters=[],
+                   baselineSubtraction=False, baselineCond=None,
+                   sort_fct=sort_rois_by_mean_response, sort_fcts_options=dict(response_window=None),
+                   savepath=None):
+    
+    responses_over_rois = {}
+    norms = []
+
+    for i, vparam in enumerate(varied_parameters):
+
+        vmin, vmax = np.inf, -np.inf
+
+        for j, virus in enumerate(viruses): 
+
+            key = f'{virus}-{state_cond}-{vparam}'
+
+            if baselineSubtraction :
+                responses_over_rois[key] = np.subtract(responses[key].T, 
+                                                       np.mean(responses[key][:, baselineCond], axis=1)).T
+            else :
+                responses_over_rois[key] = responses[key]
+
+            if responses_over_rois[key].shape[0] != 0:
+                if np.min(responses_over_rois[key]) < vmin:
+                    vmin = np.min(responses_over_rois[key])
+                if np.max(responses_over_rois[key]) > vmax:
+                    vmax = np.max(responses_over_rois[key])
+
+        if responses_over_rois[key].shape[0] != 0:
+            norm = mcolors.TwoSlopeNorm(
+                vmin=vmin, 
+                vcenter=0.0,
+                vmax=vmax
+            )
+        else :
+            norm = None
+
+        norms.append(norm)
+
+    fig, AX = plt.subplots(len(varied_parameters), len(viruses), figsize=(10, 5*len(varied_parameters)), sharex=True)
+
+    for i, vparam in enumerate(varied_parameters):
+        for j, virus in enumerate(viruses):
+
+            key = f'{virus}-{state_cond}-{vparam}'
+
+            if responses_over_rois[key].shape[0] != 0:
+                idx_sorted = sort_fct(responses_over_rois[key], **sort_fcts_options)
+
+                im = AX[i][j].pcolormesh(ep.t, np.arange(responses[key].shape[0]), 
+                                    responses_over_rois[key][idx_sorted, :], cmap='PiYG', 
+                                    norm=norms[i])
+                
+
+                AX[i][j].vlines(0, -0.5, responses[key].shape[0]-0.5, color='k', linewidth=1, linestyle='--')
+
+                AX[i][j].vlines(ep.time_duration[0], -0.5, responses[key].shape[0]-0.5, color='k', linewidth=1, linestyle='--')
+
+            AX[i][j].set_title(key)
+
+        if responses_over_rois[key].shape[0] != 0: 
+            fig.subplots_adjust(right=0.8)
+            cbar_ax = fig.add_axes([0.82, AX[i][0].get_position().y0, 0.007, AX[i][0].get_position().height])
+            fig.colorbar(im, cax=cbar_ax)
+
 
     if savepath is not None:
         plt.savefig(os.path.join(savepath), transparent=True, format='svg')
