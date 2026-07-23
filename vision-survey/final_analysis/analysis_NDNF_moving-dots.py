@@ -24,8 +24,8 @@ from sklearn.metrics import auc
 # %%
 
 # TO LOOP OVER NWB FILES WITH VISUAL STIMULUS --- DRIFITING GRATING ---  multisession
-pname = 'Natural-Images-4-repeats'
-varied_parameter = 'Image-ID'
+pname = "moving-dots"
+varied_parameter = 'speed'
 
 folder = os.path.join(os.path.expanduser('~'), 'DATA', 'Adrianna',
                         'NDNF-cond-CB1', 'NWBs')
@@ -51,9 +51,9 @@ ep_props = dict(quantities=['dFoF', 'Deconvolved'] ,
                 dt_sampling=params.dt_sampling,
                 verbose=False)
 
-savepath_fig = r"Y:\raw-imaging\Adrianna\experiments\analysis\Adrianna\NDNF\figures\natural_images"
+savepath_fig = os.path.join(r"Y:\raw-imaging\Adrianna\experiments\analysis\Adrianna\NDNF\figures", pname)
 savepath_excel = r"Y:\raw-imaging\Adrianna\experiments\analysis\Adrianna\NDNF\excels"
-savepath_data = r"Y:\raw-imaging\Adrianna\experiments\analysis\Adrianna\NDNF\data\natural_images"
+savepath_data = os.path.join(r"Y:\raw-imaging\Adrianna\experiments\analysis\Adrianna\NDNF\data", pname)
 os.makedirs(savepath_fig, exist_ok=True)
 os.makedirs(savepath_data, exist_ok=True)
 os.makedirs(savepath_excel, exist_ok=True)
@@ -180,7 +180,7 @@ for i, filename in enumerate(DATASET['files']):
 
             else:
                 print("cond: %s-%s -> [XX] response not included (%i ROIs, %i eps)" % 
-                      (virus,state, np.sum(pos_evokedStats['significant']), np.sum(state_filter)))
+                    (virus,state, np.sum(pos_evokedStats['significant']), np.sum(state_filter)))
             
             if (neg_evokedStats['significant'].size != 0) and \
                 (np.sum(neg_evokedStats['significant'], axis=0)>=params.NMIN_ROIS) and \
@@ -196,7 +196,7 @@ for i, filename in enumerate(DATASET['files']):
 
             else:
                 print("cond: %s-%s -> [XX] response not included (%i ROIs, %i eps)" % 
-                      (virus,state, np.sum(neg_evokedStats['significant']), np.sum(state_filter)))
+                    (virus,state, np.sum(neg_evokedStats['significant']), np.sum(state_filter)))
 
         ###############################
 
@@ -215,12 +215,12 @@ dFoF_neg = tools.remove_empty_sessions(dFoF_neg)
 deconvolved_neg = tools.remove_empty_sessions(deconvolved_neg)
 
 # SAVE IN NPY FILES
-np.save(os.path.join(savepath_data, 'natimg_dFoF_pos.npy'), dFoF_pos)
-np.save(os.path.join(savepath_data, 'natimg_deconvolved_pos.npy'), deconvolved_pos)
-np.save(os.path.join(savepath_data, 'natimg_dFoF_neg.npy'), dFoF_neg)
-np.save(os.path.join(savepath_data, 'natimg_deconvolved_neg.npy'), deconvolved_neg)
-np.save(os.path.join(savepath_data, 'natimg_included_mice_pos.npy'), included_mice_pos)
-np.save(os.path.join(savepath_data, 'natimg_included_mice_neg.npy'), included_mice_neg)
+np.save(os.path.join(savepath_data, pname + '_dFoF_pos.npy'), dFoF_pos)
+np.save(os.path.join(savepath_data, pname + '_deconvolved_pos.npy'), deconvolved_pos)
+np.save(os.path.join(savepath_data, pname + '_dFoF_neg.npy'), dFoF_neg)
+np.save(os.path.join(savepath_data, pname + '_deconvolved_neg.npy'), deconvolved_neg)
+np.save(os.path.join(savepath_data, pname + '_included_mice_pos.npy'), included_mice_pos)
+np.save(os.path.join(savepath_data, pname + '_included_mice_neg.npy'), included_mice_neg)
 
 # BUILD DATAFRAME
 import pandas as pd 
@@ -231,7 +231,7 @@ df = pd.DataFrame(DATASET).drop(columns=['protocol_ids', 'protocols', 'files']).
 df['perc_resp_pos'] = df['nb_responsive_neurons_pos'] / df['nb_neurons'] * 100
 df['perc_resp_neg'] = df['nb_responsive_neurons_neg'] / df['nb_neurons'] * 100
 
-excel_filename = 'natimg_summary_data_' + 'NDNF' + '.xlsx'
+excel_filename = pname + '_summary_data_' + 'NDNF' + '.xlsx'
 df.to_excel(os.path.join(savepath_excel, excel_filename))
 
 df
@@ -242,7 +242,7 @@ fig, AX = pt_fcts.plot_average_response(ep.t, dFoF_pos,
                                         viruses, states_names, [], varied_parameter, 
                                         included_mice_pos, params.NMIN_SESSIONS)
 
-firgurename = 'natimg_average_pos_res_dfof_'+ 'NDNF' + '.svg'
+firgurename = pname + '_average_pos_res_dfof_'+ 'NDNF' + '.svg'
 fig.savefig(os.path.join(savepath_fig, firgurename), transparent=True, format='svg', bbox_inches="tight")
 
 #%% 1.b Averaged dF/F0 with baseline substracted over positively responsive ROIs and over episodes across virus and behavioral states (std over sessions)
@@ -252,7 +252,7 @@ fig, AX = pt_fcts.plot_average_response(ep.t, dFoF_pos,
                                         included_mice_pos, params.NMIN_SESSIONS, 
                                         baselineSubtraction=True, baselineCond=baselineCond)
 
-firgurename = 'natimg_average_pos_res_dfof_bsl_sub_'+ 'NDNF' + '.svg'
+firgurename = pname + '_average_pos_res_dfof_bsl_sub_'+ 'NDNF' + '.svg'
 fig.savefig(os.path.join(savepath_fig, firgurename), transparent=True, format='svg', bbox_inches="tight")
 
 #%% 1.c Averaged deconvolved trace over positively responsive ROIs and over episodes across virus and behavioral states (std over sessions)
@@ -262,7 +262,7 @@ fig, AX = pt_fcts.plot_average_response(ep.t, deconvolved_pos,
                                         included_mice_pos, params.NMIN_SESSIONS)
 AX[0].set_ylabel('deconvolved')
 
-firgurename = 'natimg_average_pos_res_deconvolved_' + 'NDNF' + '.svg'
+firgurename = pname + '_average_pos_res_deconvolved_' + 'NDNF' + '.svg'
 fig.savefig(os.path.join(savepath_fig, firgurename), transparent=True, format='svg', bbox_inches="tight")
 
 #%% 2.a Averaged dF/F0 over negatively responsive ROIs and over episodes across virus and behavioral states (std over sessions)
@@ -271,7 +271,7 @@ fig, AX = pt_fcts.plot_average_response(ep.t, dFoF_neg,
                                         viruses, states_names, [], varied_parameter, 
                                         included_mice_neg, params.NMIN_SESSIONS)
 
-firgurename = 'natimg_average_neg_res_dfof_' + 'NDNF' + '.svg'
+firgurename = pname + '_average_neg_res_dfof_' + 'NDNF' + '.svg'
 fig.savefig(os.path.join(savepath_fig, firgurename), transparent=True, format='svg', bbox_inches="tight")
 
 #%% 2.b Averaged dF/F0 with baseline substracted over negatively responsive ROIs and over episodes across virus and behavioral states (std over sessions)
@@ -282,7 +282,7 @@ fig, AX = pt_fcts.plot_average_response(ep.t, dFoF_neg,
                                         included_mice_neg, params.NMIN_SESSIONS, 
                                         baselineSubtraction=True, baselineCond=baselineCond)
 
-firgurename = 'natimg_average_neg_res_dfof_bsl_sub_' + 'NDNF' + '.svg'
+firgurename = pname + '_average_neg_res_dfof_bsl_sub_' + 'NDNF' + '.svg'
 fig.savefig(os.path.join(savepath_fig, firgurename), transparent=True, format='svg', bbox_inches="tight")
 
 #%% 2.c Averaged deconvolved trace over negatively responsive ROIs and over episodes across virus and behavioral states (std over sessions)
@@ -292,7 +292,7 @@ fig, AX = pt_fcts.plot_average_response(ep.t, deconvolved_neg,
                                         included_mice_neg, params.NMIN_SESSIONS)
 AX[0].set_ylabel('deconvolved')
 
-firgurename = 'natimg_average_neg_res_deconvolved_' + 'NDNF' + '.svg'
+firgurename = pname + '_average_neg_res_deconvolved_' + 'NDNF' + '.svg'
 fig.savefig(os.path.join(savepath_fig, firgurename), transparent=True, format='svg', bbox_inches="tight")
 
 #%% 3. Pie chart of responsive neurons
@@ -305,7 +305,7 @@ for v in viruses:
 
 fig, AX = pt_fcts.pie_chart_responsive_neurons_pos_neg(percentages_pos, percentages_neg, viruses, [])
 
-firgurename = 'natimg_pie_charts_' + 'NDNF' + '.svg'
+firgurename = pname + '_pie_charts_' + 'NDNF' + '.svg'
 fig.savefig(os.path.join(savepath_fig, firgurename), transparent=True, format='svg', bbox_inches="tight")
 
 #%% 4. Rasterplots with all reponsive ROIs sorted by mean 
@@ -328,14 +328,14 @@ dFoF_means = average_and_concatenate_sessions(dFoF_pos, dFoF_neg, viruses, state
 baselineCond = (ep.t>pos_stat_test_props['interval_pre'][0]) & (ep.t<pos_stat_test_props['interval_pre'][1])
 response_window = (ep.t>pos_stat_test_props['interval_post'][0]) & (ep.t<pos_stat_test_props['interval_post'][1])
 
-figurename = 'natimg_rastermap_res_dfof_bsl_sub_'+ 'NDNF' + '.svg'
+figurename = pname + '_rastermap_res_dfof_bsl_sub_'+ 'NDNF' + '.svg'
 fig, AX = pt_fcts.plot_rastermap(dFoF_means, ep, viruses, state_cond='all', 
                                  baselineSubtraction=True, baselineCond=baselineCond, 
                                  sort_fcts_options=dict(response_window=response_window))
 
 fig.savefig(os.path.join(savepath_fig, figurename), transparent=True, format='svg', bbox_inches="tight")
 
-figurename = 'natimg_rastermap_res_dfof_'+ 'NDNF' + '.svg'
+figurename = pname + '_rastermap_res_dfof_'+ 'NDNF' + '.svg'
 fig, AX = pt_fcts.plot_rastermap(dFoF_means, ep, viruses, state_cond='all', 
                                  sort_fcts_options=dict(response_window=response_window))
 

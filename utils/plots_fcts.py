@@ -450,9 +450,9 @@ def plot_rastermap(responses, ep, viruses, state_cond='all',
                               norm=norm)
         AX[i].set_title(f'{virus}-{state_cond}')
 
-        AX[i].vlines(0, 0, responses[f'{virus}-{state_cond}'].shape[0]-0.5, color='k', linewidth=1, linestyle='--')
+        AX[i].vlines(0, -0.5, responses[f'{virus}-{state_cond}'].shape[0]-0.5, color='k', linewidth=1, linestyle='--')
 
-        AX[i].vlines(ep.time_duration[0], 0, responses[f'{virus}-{state_cond}'].shape[0]-0.5, color='k', linewidth=1, linestyle='--')
+        AX[i].vlines(ep.time_duration[0], -0.5, responses[f'{virus}-{state_cond}'].shape[0]-0.5, color='k', linewidth=1, linestyle='--')
 
     fig.subplots_adjust(right=0.8)
     cbar_ax = fig.add_axes([0.82, 0.38, 0.007, 0.5])
