@@ -238,11 +238,9 @@ df
 fig, AX = pt_fcts.plot_average_response(ep.t, dFoF_pos, 
                                         viruses, states_names, [], varied_parameter, 
                                         included_mice_pos, params.NMIN_SESSIONS)
-fig.tight_layout()
-fig.set_size_inches(3, 4)
 
 firgurename = 'natimg_average_pos_res_dfof_'+ 'NDNF' + '.svg'
-fig.savefig(os.path.join(savepath_fig, firgurename), transparent=True, format='svg')
+fig.savefig(os.path.join(savepath_fig, firgurename), transparent=True, format='svg', bbox_inches="tight")
 
 #%% 1.b Averaged dF/F0 with baseline substracted over positively responsive ROIs and over episodes across virus and behavioral states (std over sessions)
 baselineCond = (ep.t>pos_stat_test_props['interval_pre'][0]) & (ep.t<pos_stat_test_props['interval_pre'][1])
@@ -251,11 +249,8 @@ fig, AX = pt_fcts.plot_average_response(ep.t, dFoF_pos,
                                         included_mice_pos, params.NMIN_SESSIONS, 
                                         baselineSubtraction=True, baselineCond=baselineCond)
 
-fig.tight_layout()
-fig.set_size_inches(3, 4)
-
 firgurename = 'natimg_average_pos_res_dfof_bsl_sub_'+ 'NDNF' + '.svg'
-fig.savefig(os.path.join(savepath_fig, firgurename), transparent=True, format='svg')
+fig.savefig(os.path.join(savepath_fig, firgurename), transparent=True, format='svg', bbox_inches="tight")
 
 #%% 1.c Averaged deconvolved trace over positively responsive ROIs and over episodes across virus and behavioral states (std over sessions)
 
@@ -263,22 +258,18 @@ fig, AX = pt_fcts.plot_average_response(ep.t, deconvolved_pos,
                                         viruses, states_names, [], varied_parameter, 
                                         included_mice_pos, params.NMIN_SESSIONS)
 AX[0].set_ylabel('deconvolved')
-fig.tight_layout()
-fig.set_size_inches(3, 4)
 
 firgurename = 'natimg_average_pos_res_deconvolved_' + 'NDNF' + '.svg'
-fig.savefig(os.path.join(savepath_fig, firgurename), transparent=True, format='svg')
+fig.savefig(os.path.join(savepath_fig, firgurename), transparent=True, format='svg', bbox_inches="tight")
 
 #%% 2.a Averaged dF/F0 over negatively responsive ROIs and over episodes across virus and behavioral states (std over sessions)
 
 fig, AX = pt_fcts.plot_average_response(ep.t, dFoF_neg, 
                                         viruses, states_names, [], varied_parameter, 
                                         included_mice_neg, params.NMIN_SESSIONS)
-fig.tight_layout()
-fig.set_size_inches(3, 4)
 
 firgurename = 'natimg_average_neg_res_dfof_' + 'NDNF' + '.svg'
-fig.savefig(os.path.join(savepath_fig, firgurename), transparent=True, format='svg')
+fig.savefig(os.path.join(savepath_fig, firgurename), transparent=True, format='svg', bbox_inches="tight")
 
 #%% 2.b Averaged dF/F0 with baseline substracted over negatively responsive ROIs and over episodes across virus and behavioral states (std over sessions)
 baselineCond = (ep.t>pos_stat_test_props['interval_pre'][0]) & (ep.t<pos_stat_test_props['interval_pre'][1])
@@ -288,11 +279,8 @@ fig, AX = pt_fcts.plot_average_response(ep.t, dFoF_neg,
                                         included_mice_neg, params.NMIN_SESSIONS, 
                                         baselineSubtraction=True, baselineCond=baselineCond)
 
-fig.tight_layout()
-fig.set_size_inches(3, 4)
-
 firgurename = 'natimg_average_neg_res_dfof_bsl_sub_' + 'NDNF' + '.svg'
-fig.savefig(os.path.join(savepath_fig, firgurename), transparent=True, format='svg')
+fig.savefig(os.path.join(savepath_fig, firgurename), transparent=True, format='svg', bbox_inches="tight")
 
 #%% 2.c Averaged deconvolved trace over negatively responsive ROIs and over episodes across virus and behavioral states (std over sessions)
 
@@ -300,11 +288,9 @@ fig, AX = pt_fcts.plot_average_response(ep.t, deconvolved_neg,
                                         viruses, states_names, [], varied_parameter, 
                                         included_mice_neg, params.NMIN_SESSIONS)
 AX[0].set_ylabel('deconvolved')
-fig.tight_layout()
-fig.set_size_inches(3, 4)
 
 firgurename = 'natimg_average_neg_res_deconvolved_' + 'NDNF' + '.svg'
-fig.savefig(os.path.join(savepath_fig, firgurename), transparent=True, format='svg')
+fig.savefig(os.path.join(savepath_fig, firgurename), transparent=True, format='svg', bbox_inches="tight")
 
 #%% 3. Pie chart of responsive neurons
 percentages_pos = {}
@@ -317,7 +303,7 @@ for v in viruses:
 fig, AX = pt_fcts.pie_chart_responsive_neurons_pos_neg(percentages_pos, percentages_neg, viruses, [])
 
 firgurename = 'natimg_pie_charts_' + 'NDNF' + '.svg'
-fig.savefig(os.path.join(savepath_fig, firgurename), transparent=True, format='svg')
+fig.savefig(os.path.join(savepath_fig, firgurename), transparent=True, format='svg', bbox_inches="tight")
 
 #%% 4. Rasterplots with all reponsive ROIs sorted by mean 
 
@@ -344,10 +330,10 @@ fig, AX = pt_fcts.plot_rastermap(dFoF_means, ep, viruses, state_cond='all',
                                  baselineSubtraction=True, baselineCond=baselineCond, 
                                  sort_fcts_options=dict(response_window=response_window))
 
-fig.savefig(os.path.join(savepath_fig, figurename), transparent=True, format='svg')
+fig.savefig(os.path.join(savepath_fig, figurename), transparent=True, format='svg', bbox_inches="tight")
 
 figurename = 'natimg_rastermap_res_dfof_'+ 'NDNF' + '.svg'
 fig, AX = pt_fcts.plot_rastermap(dFoF_means, ep, viruses, state_cond='all', 
                                  sort_fcts_options=dict(response_window=response_window))
 
-fig.savefig(os.path.join(savepath_fig, figurename), transparent=True, format='svg')
+fig.savefig(os.path.join(savepath_fig, figurename), transparent=True, format='svg', bbox_inches="tight")
