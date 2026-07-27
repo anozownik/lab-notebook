@@ -39,7 +39,7 @@ DATASET = physion.analysis.read_NWB.scan_folder_for_NWBfiles(folder,
 state_metric = 'speed' # 'speed' or 'pupil' or 'speed & pupil'
 
 stat_test_props = params.stat_test_props.copy()
-stat_test_props['interval_post'] = params.interval_post[pname]
+stat_test_props['interval_post'] = params.interval_post_pyr[pname]
 stat_test_props['sign'] = 'positive'
 
 dFoF_options = params.dFoF_options

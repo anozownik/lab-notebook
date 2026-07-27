@@ -37,11 +37,11 @@ DATASET = physion.analysis.read_NWB.scan_folder_for_NWBfiles(folder,
 #%% SET PARAMETERS
 
 pos_stat_test_props = params.stat_test_props.copy()
-pos_stat_test_props['interval_post'] = params.interval_post[pname]
+pos_stat_test_props['interval_post'] = params.interval_post_ndnf[pname]
 pos_stat_test_props['sign'] = 'positive'
 
 neg_stat_test_props = params.stat_test_props.copy()
-neg_stat_test_props['interval_post'] = params.interval_post[pname]
+neg_stat_test_props['interval_post'] = params.interval_post_ndnf[pname]
 neg_stat_test_props['sign'] = 'negative'
 
 dFoF_options = params.dFoF_options
