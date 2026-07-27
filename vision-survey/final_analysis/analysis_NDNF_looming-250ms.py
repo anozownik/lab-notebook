@@ -24,7 +24,7 @@ from sklearn.metrics import auc
 # %%
 
 # TO LOOP OVER NWB FILES WITH VISUAL STIMULUS --- DRIFITING GRATING ---  multisession
-pname = 'looming-stim-white'
+pname = 'looming-stim-250msloom'
 varied_parameter = None
 
 folder = os.path.join(os.path.expanduser('~'), 'DATA', 'Adrianna',
@@ -42,8 +42,6 @@ ep_props = dict(quantities=['dFoF', 'Deconvolved'] ,
                 #prestim_duration=1.5,
                 dt_sampling=params.dt_sampling,
                 verbose=False)
-
-nMin_episodes_reliability = 5
 
 savepath_fig = os.path.join(r"Y:\raw-imaging\Adrianna\experiments\analysis\Adrianna\NDNF\figures", pname)
 savepath_excel = r"Y:\raw-imaging\Adrianna\experiments\analysis\Adrianna\NDNF\excels"
@@ -117,23 +115,23 @@ for i, filename in enumerate(DATASET['files']):
 
         ######### 2) identify visually-responsive cells #########
 
-        pos_evokedStats = ep.visualpipe_evoked_responses(\
+        pos_evokedStats = ep.visualpipe_evoked_responses(
                                             sign='positive',
                                             response_args=params.response_args,
                                             response_significance_threshold=params.response_significance_threshold,
                                             loop_over_cells=True,
                                             repetition_keys=['repeat'],
-                                            nMin_episodes=nMin_episodes_reliability,
+                                            nMin_episodes=5,
                                             verbose=False
                                             )
                     
-        neg_evokedStats = ep.visualpipe_evoked_responses(\
+        neg_evokedStats = ep.visualpipe_evoked_responses(
                                             sign='negative',
                                             response_args=params.response_args,
                                             response_significance_threshold=params.response_significance_threshold,
                                             loop_over_cells=True,
                                             repetition_keys=['repeat'],
-                                            nMin_episodes=nMin_episodes_reliability,
+                                            nMin_episodes=5,
                                             verbose=False
                                             )
 
@@ -238,10 +236,106 @@ df.to_excel(os.path.join(savepath_excel, excel_filename))
 df
 
 #%% 1.a Averaged dF/F0 over positively responsive ROIs and over episodes across virus and behavioral states (std over sessions)
+color_virus = {'sgRosa' : 'grey', 
+               'sgCnr1': "darkred"}
 
-fig, AX = pt_fcts.plot_average_response(ep.t, dFoF_pos, 
-                                        viruses, states_names, [], varied_parameter, 
-                                        included_mice_pos, params.NMIN_SESSIONS)
+def plot_average_response(t, responses, 
+                          viruses, states, varied_parameter=[],
+                          vparam_name='',
+                          included_mice=None,
+                          nmin_sessions=1,
+                          baselineSubtraction=False,
+                          baselineCond=None,
+                          annotation_props=dict(xy=(0.05,1), ha='left', fontsize=4),
+                          savepath=None):
+    
+    if len(varied_parameter) == 0:
+        fig, AX = plot_average_response_no_vparam(t, responses, 
+                                                  viruses, states, 
+                                                  included_mice, nmin_sessions, 
+                                                  baselineSubtraction, baselineCond,
+                                                  annotation_props)
+
+    if savepath is not None:
+        plt.savefig(os.path.join(savepath), transparent=True, format='svg')
+
+    return fig, AX
+
+def plot_average_response_no_vparam(t, responses, 
+                                    viruses, states, 
+                                    included_mice=None,
+                                    nmin_sessions=1,
+                                    baselineSubtraction=False,
+                                    baselineCond=None,
+                                    annotation_props=dict(xy=(0.05,1), ha='left', fontsize=4)):
+    
+    fig, AX = pt.figure(axes=(len(states), 1))
+
+    if len(states) == 1:
+        AX = np.reshape(AX, (1))
+
+    for j, state in enumerate(states):
+        for k, virus in enumerate(viruses):
+
+            key = f'{virus}-{state}'
+
+            print(key)
+            print([r.shape for r in responses[key]])
+
+            session_responses = np.array([np.mean(r, axis=(0,1)) for r in responses[key]])
+            
+            if baselineSubtraction:
+                if baselineCond is None:
+                    baselineCond = (t<0)
+                if len(session_responses.shape) == 2:
+                    session_responses = session_responses - session_responses[:, baselineCond].mean(axis=1, keepdims=True)
+
+            if np.shape(session_responses)[0] >= nmin_sessions :
+
+                if np.shape(session_responses)[0] == 1 :
+                    pt.plot(t, session_responses[0],
+                            color=color_virus[virus], ax=AX[j])
+                else :
+                    pt.plot(t, np.mean(session_responses,axis=0),
+                            sy=sem(session_responses,axis=0),
+                            color=color_virus[virus], ax=AX[j])
+            
+            if len(responses[key]) > 0:
+
+                nb_eps, nb_rois = np.column_stack([(r.shape[0], r.shape[1]) for r in responses[key]])
+
+                if included_mice is not None:
+                    nb_mice = np.unique(included_mice[key]).shape[0]
+                    pt.annotate(AX[j],
+                                'N=%i (%i mice, %i rois, %i eps)' % (len(responses[key]), 
+                                                                        nb_mice,
+                                                                        nb_rois.sum(), 
+                                                                        nb_eps.sum())
+                                                                +k*'\n',
+                                                                
+                                color=color_virus[virus], **annotation_props)
+                else :
+                    pt.annotate(AX[j],
+                                'N=%i (%i rois, %i eps)' % (len(responses[key]), 
+                                                            nb_rois.sum(), 
+                                                            nb_eps.sum())
+                                                            +k*'\n',
+                                                                
+                                color=color_virus[virus], **annotation_props)          
+            else :
+                pt.annotate(AX[j], 'N=0' +k*'\n', color=color_virus[virus], **annotation_props)
+    
+            pt.annotate(AX[j], state, (0.5, 1.3), ha='center') 
+        
+        pt.set_plot(AX[j], xlabel='time (s)', ylabel='$\\Delta$F/F' if j==0 else '')
+    
+    #pt.set_common_ylims(AX)
+
+    return fig, AX
+
+fig, AX = plot_average_response(ep.t, dFoF_pos, 
+                                viruses, states_names, [], varied_parameter, 
+                                included_mice_pos, params.NMIN_SESSIONS)
 
 firgurename = pname + '_average_pos_res_dfof_'+ 'NDNF' + '.svg'
 fig.savefig(os.path.join(savepath_fig, firgurename), transparent=True, format='svg', bbox_inches="tight")
