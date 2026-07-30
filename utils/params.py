@@ -32,6 +32,6 @@ dt_sampling = 1/30*1e3
 summary_stats = []
 
 RUNNING_SPEED_THRESHOLD = 0.5
-NMIN_ROIS = 3
+NMIN_ROIS = 1
 NMIN_EPISODES = 2
 NMIN_SESSIONS = 1

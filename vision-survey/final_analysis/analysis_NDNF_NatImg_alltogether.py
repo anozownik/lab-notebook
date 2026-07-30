@@ -1,5 +1,6 @@
 # %%
 import numpy as np
+import pandas as pd 
 import os, sys, tempfile
 
 sys.path.append('../../physion/src') # add src code directory for physion
@@ -20,6 +21,7 @@ from scipy.stats import sem
 from itertools import product
 import datetime
 from sklearn.metrics import auc
+from scipy.stats import skew
 
 # %%
 
@@ -64,6 +66,12 @@ os.makedirs(savepath_excel, exist_ok=True)
 DATASET["virus"], DATASET['alpha'], DATASET["nb_neurons"] = [], [], []
 DATASET["nb_responsive_neurons_pos"], DATASET["nb_responsive_neurons_neg"] = [], []
 DATASET['mean_dFoF_pos'], DATASET['mean_dFoF_neg'] = [], []
+
+DATASET_ROIS = dict(mouse=[], virus=[], session=[], rois_id=[], 
+                    mean_avg_trial=[], 
+                    responsive=[], skewness=[])
+DATASET_ROIS['mean_avg_trial_win_0.5-1.5'] = []
+DATASET_ROIS['mean_avg_trial_win_2-3'] = []
 
 included_mice_pos = None
 included_mice_neg = None
@@ -197,6 +205,30 @@ for i, filename in enumerate(DATASET['files']):
             else:
                 print("cond: %s-%s -> [XX] response not included (%i ROIs, %i eps)" % 
                       (virus,state, np.sum(neg_evokedStats['significant']), np.sum(state_filter)))
+            
+            # Store ROIs' data
+            for roi_idx in range(len(pos_evokedStats['significant'])):
+                DATASET_ROIS['mouse'].append(DATASET['subjects'][i])
+                DATASET_ROIS['virus'].append(virus)
+                DATASET_ROIS['session'].append(os.path.basename(filename)[:-4])
+                DATASET_ROIS['rois_id'].append(roi_idx)
+                DATASET_ROIS['skewness'].append(skew(np.mean(ep.dFoF[state_filter][:, roi_idx, :], axis=0)))
+                roi_bsl = np.mean(ep.dFoF[state_filter][:, roi_idx, :][:, (ep.t>-1) & (ep.t<0)])
+                if pos_evokedStats['significant'][roi_idx]:
+                    DATASET_ROIS['responsive'].append(1)
+                    DATASET_ROIS['mean_avg_trial'].append(np.mean(ep.dFoF[state_filter][:, roi_idx, :][:, (ep.t>0)]) - roi_bsl)
+                    DATASET_ROIS['mean_avg_trial_win_0.5-1.5'].append(np.mean(ep.dFoF[state_filter][:, roi_idx, :][:, window]) - roi_bsl)
+                    DATASET_ROIS['mean_avg_trial_win_2-3'].append(np.mean(ep.dFoF[state_filter][:, roi_idx, :][:, (ep.t>2) & (ep.t<3)]) - roi_bsl)
+                elif neg_evokedStats['significant'][roi_idx]:
+                    DATASET_ROIS['responsive'].append(-1)
+                    DATASET_ROIS['mean_avg_trial'].append(np.mean(ep.dFoF[state_filter][:, roi_idx, :][:, (ep.t>0)]) - roi_bsl)
+                    DATASET_ROIS['mean_avg_trial_win_0.5-1.5'].append(np.mean(ep.dFoF[state_filter][:, roi_idx, :][:, window]) - roi_bsl)
+                    DATASET_ROIS['mean_avg_trial_win_2-3'].append(np.mean(ep.dFoF[state_filter][:, roi_idx, :][:, (ep.t>2) & (ep.t<3)]) - roi_bsl)
+                else:
+                    DATASET_ROIS['responsive'].append(0)
+                    DATASET_ROIS['mean_avg_trial'].append(np.nan)
+                    DATASET_ROIS['mean_avg_trial_win_0.5-1.5'].append(np.nan)
+                    DATASET_ROIS['mean_avg_trial_win_2-3'].append(np.nan)
 
         ###############################
 
@@ -208,7 +240,18 @@ for i, filename in enumerate(DATASET['files']):
         DATASET['mean_dFoF_neg'].append(np.nan)
     
     print('')
-                
+
+#%%
+
+# BUILD DATAFRAME ROIS
+df_rois = pd.DataFrame(DATASET_ROIS)
+
+excel_filename = pname + '_summary_data_rois_' + 'NDNF' + '.xlsx'
+df_rois.to_excel(os.path.join(savepath_excel, excel_filename))
+
+df_rois
+
+#%%
 dFoF_pos = tools.remove_empty_sessions(dFoF_pos)
 deconvolved_pos = tools.remove_empty_sessions(deconvolved_pos)
 dFoF_neg = tools.remove_empty_sessions(dFoF_neg)
@@ -223,7 +266,6 @@ np.save(os.path.join(savepath_data, 'natimg_included_mice_pos.npy'), included_mi
 np.save(os.path.join(savepath_data, 'natimg_included_mice_neg.npy'), included_mice_neg)
 
 # BUILD DATAFRAME
-import pandas as pd 
 
 DATASET['session'] = np.array([os.path.basename(file)[:-4] for file in DATASET['files']])
 

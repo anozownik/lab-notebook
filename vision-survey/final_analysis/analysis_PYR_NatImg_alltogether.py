@@ -1,5 +1,6 @@
 # %%
 import numpy as np
+import pandas as pd 
 import os, sys, tempfile
 
 sys.path.append('../../physion/src') # add src code directory for physion
@@ -20,6 +21,7 @@ from scipy.stats import sem
 from itertools import product
 import datetime
 from sklearn.metrics import auc
+from scipy.stats import skew
 
 # %%
 
@@ -69,6 +71,10 @@ DATASET["nb_neurons"], DATASET["nb_responsive_neurons"], DATASET['mean_dFoF'] = 
 for i in range(len(decoder_window)):
     key = f"accuracies_{decoder_window[i][0]}-{decoder_window[i][1]}"
     DATASET[key] = []
+
+DATASET_ROIS = dict(mouse=[], virus=[], session=[], rois_id=[], 
+                    mean_avg_trial=[], mean_avg_trial_win=[],
+                    responsive=[], skewness=[])
 
 included_mice = None
 dFoF = None
@@ -235,6 +241,23 @@ for i, filename in enumerate(DATASET['files']):
             
             DATASET[key].append(np.mean(accuracies))
 
+        ######### 5) Store ROIs' data #########
+        for roi_idx in range(len(evokedStats['significant'])):
+            DATASET_ROIS['mouse'].append(DATASET['subjects'][i])
+            DATASET_ROIS['virus'].append(virus)
+            DATASET_ROIS['session'].append(os.path.basename(filename)[:-4])
+            DATASET_ROIS['rois_id'].append(roi_idx)
+            DATASET_ROIS['skewness'].append(skew(np.mean(ep.dFoF[:, roi_idx, :], axis=0)))
+            roi_bsl = np.mean(ep.dFoF[:, roi_idx, :][:, (ep.t>-1) & (ep.t<0)])
+            if evokedStats['significant'][roi_idx]:
+                DATASET_ROIS['responsive'].append(1)
+                DATASET_ROIS['mean_avg_trial'].append(np.mean(ep.dFoF[:, roi_idx, :][:, (ep.t>0)]) - roi_bsl)
+                DATASET_ROIS['mean_avg_trial_win'].append(np.mean(ep.dFoF[:, roi_idx, :][:, window]) - roi_bsl)
+            else:
+                DATASET_ROIS['responsive'].append(0)
+                DATASET_ROIS['mean_avg_trial'].append(np.mean(ep.dFoF[:, roi_idx, :][:, (ep.t>0)]) - roi_bsl)
+                DATASET_ROIS['mean_avg_trial_win'].append(np.mean(ep.dFoF[:, roi_idx, :][:, window]) - roi_bsl)
+
         ###############################
 
     else :
@@ -243,7 +266,17 @@ for i, filename in enumerate(DATASET['files']):
         DATASET['mean_dFoF'].append(np.nan)
     
     print('')
-                
+#%%
+
+# BUILD DATAFRAME ROIS
+df_rois = pd.DataFrame(DATASET_ROIS)
+
+excel_filename = pname + '_summary_data_rois_' + 'PN' + '.xlsx'
+df_rois.to_excel(os.path.join(savepath_excel, excel_filename))
+
+df_rois
+
+#%%           
 dFoF = tools.remove_empty_sessions(dFoF)
 deconvolved = tools.remove_empty_sessions(deconvolved)
 run_means = tools.remove_empty_sessions(run_means)
@@ -255,7 +288,6 @@ np.save(os.path.join(savepath_data, 'run_means.npy'), run_means)
 np.save(os.path.join(savepath_data, 'included_mice.npy'), included_mice)
 
 # BUILD DATAFRAME
-import pandas as pd 
 
 DATASET['session'] = np.array([os.path.basename(file)[:-4] for file in DATASET['files']])
 
@@ -407,3 +439,218 @@ pt.annotate(AX, f'WT: N={len(rosa)} mice\nKD: N={len(cnr1)} mice', xy=(0.5, 1), 
 
 firgurename = 'natimg_gain_' + 'PYR' + '.svg'
 fig.savefig(os.path.join(savepath_fig, firgurename), transparent=True, format='svg', bbox_inches="tight")
+
+# %% COMPUTATION Highly skewd vs Lowly skewed Average response
+
+ep_props = dict(quantities=['dFoF'],
+                #prestim_duration=1.5,
+                dt_sampling=params.dt_sampling,
+                verbose=False)
+
+viruses = ['sgRosa', 'sgCnr1']
+
+# INITILIAZE DICTIONARIES TO STORE RESPONSES AND BEHAVIORAL QUANTITIES
+included_mice_highly_skewed  = {f"{v}" : [] for v in viruses}
+included_mice_lowly_skewed  = {f"{v}" : [] for v in viruses}
+
+trial_avg_res_highly_skewed = {f"{v}" : [] for v in viruses}
+trial_avg_res_lowly_skewed = {f"{v}" : [] for v in viruses}
+
+# LOOP OVER SESSIONS
+
+for i, filename in enumerate(DATASET['files']):
+#for i, filename in enumerate([DATASET['files'][0]]):
+    
+    data = physion.analysis.read_NWB.Data(filename, verbose=False)
+
+    # determine virus        
+    if 'sgRosa' in data.nwbfile.virus:
+        virus = 'sgRosa'
+    elif 'sgCnr1' in data.nwbfile.virus:
+        virus = 'sgCnr1'
+    else :
+        raise ValueError("Virus not identified in session %s" % filename)
+    
+    print(i+1, '--', filename, '--', data.nROIs)
+
+    if 'dFoF' in ep_props['quantities']:
+        data.build_dFoF(**dFoF_options, verbose=True)
+
+    if data.nROIs>0:
+
+        # Build episode data
+        ep = physion.analysis.episodes.build.EpisodeData(data, 
+                                                        **ep_props,
+                                                        protocol_name=pname)
+        
+        ######### 1) identify highly skewed neurons #########
+        highly_skewed_rois = skew(data.dFoF, axis=1) >= 2.7
+
+        ######### 2) identify visually-responsive cells #########
+
+        evokedStats = ep.pre_post_statistics(\
+                                            stat_test_props,
+                                            response_args=params.response_args,
+                                            response_significance_threshold=params.response_significance_threshold,
+                                            loop_over_cells=True,
+                                            repetition_keys=[varied_parameter, 'repeat'],
+                                            verbose=False
+                                            )
+
+        ######### 3) Get episodes' traces #########
+
+        if (evokedStats['significant'].size != 0) and \
+            (np.sum(evokedStats['significant'], axis=0)>=params.NMIN_ROIS):
+
+            if np.sum(highly_skewed_rois & evokedStats['significant']) > 0:
+            
+                trial_avg_res_highly_skewed_session = np.mean(ep.dFoF[:, highly_skewed_rois & evokedStats['significant'], :], axis=0)
+                trial_avg_res_highly_skewed[virus].append(trial_avg_res_highly_skewed_session)
+                included_mice_highly_skewed[f"{virus}"].append(DATASET['subjects'][i])
+            
+            if np.sum((~highly_skewed_rois) & evokedStats['significant']) > 0:
+                trial_avg_res_lowly_skewed_session = np.mean(ep.dFoF[:, (~highly_skewed_rois) & (evokedStats['significant']), :], axis=0)
+                trial_avg_res_lowly_skewed[virus].append(trial_avg_res_lowly_skewed_session)
+                included_mice_lowly_skewed[f"{virus}"].append(DATASET['subjects'][i])
+                
+        else:
+            print("cond: %s -> [XX] response not included (%i ROIs)" % 
+                    (virus, np.sum(evokedStats['significant'])))
+
+        ###############################
+
+    else :
+        print("session %s has no ROIs, excluded from analysis" % filename)
+    
+    print('')
+
+trial_avg_res_highly_skewed['sgRosa-all'] = trial_avg_res_highly_skewed['sgRosa']
+trial_avg_res_highly_skewed['sgCnr1-all'] = trial_avg_res_highly_skewed['sgCnr1']
+del trial_avg_res_highly_skewed['sgRosa']
+del trial_avg_res_highly_skewed['sgCnr1']
+
+trial_avg_res_lowly_skewed['sgRosa-all'] = trial_avg_res_lowly_skewed['sgRosa']
+trial_avg_res_lowly_skewed['sgCnr1-all'] = trial_avg_res_lowly_skewed['sgCnr1']
+del trial_avg_res_lowly_skewed['sgRosa']
+del trial_avg_res_lowly_skewed['sgCnr1']
+
+included_mice_highly_skewed['sgRosa-all'] = included_mice_highly_skewed['sgRosa']
+included_mice_highly_skewed['sgCnr1-all'] = included_mice_highly_skewed['sgCnr1']
+del included_mice_highly_skewed['sgRosa']
+del included_mice_highly_skewed['sgCnr1']
+
+included_mice_lowly_skewed['sgRosa-all'] = included_mice_lowly_skewed['sgRosa']
+included_mice_lowly_skewed['sgCnr1-all'] = included_mice_lowly_skewed['sgCnr1']
+del included_mice_lowly_skewed['sgRosa']
+del included_mice_lowly_skewed['sgCnr1']
+
+#%%
+
+color_virus = {'sgRosa' : 'grey', 
+               'sgCnr1': "darkred"}
+
+def plot_average_response(t, responses, 
+                          viruses, states, varied_parameter=[],
+                          vparam_name='',
+                          included_mice=None,
+                          nmin_sessions=1,
+                          baselineSubtraction=False,
+                          baselineCond=None,
+                          annotation_props=dict(xy=(0.05,1), ha='left', fontsize=4),
+                          savepath=None):
+    
+    if len(varied_parameter) == 0:
+        fig, AX = plot_average_response_no_vparam(t, responses, 
+                                                  viruses, states, 
+                                                  included_mice, nmin_sessions, 
+                                                  baselineSubtraction, baselineCond,
+                                                  annotation_props)
+
+    if savepath is not None:
+        plt.savefig(os.path.join(savepath), transparent=True, format='svg')
+
+    return fig, AX
+
+def plot_average_response_no_vparam(t, responses, 
+                                    viruses, states, 
+                                    included_mice=None,
+                                    nmin_sessions=1,
+                                    baselineSubtraction=False,
+                                    baselineCond=None,
+                                    annotation_props=dict(xy=(0.05,1), ha='left', fontsize=4)):
+    
+    fig, AX = pt.figure(axes=(len(states), 1))
+
+    if len(states) == 1:
+        AX = np.reshape(AX, (1))
+
+    for j, state in enumerate(states):
+        for k, virus in enumerate(viruses):
+
+            key = f'{virus}-{state}'
+
+            session_responses = np.array([np.mean(r, axis=(0)) for r in responses[key]])
+            
+            if baselineSubtraction:
+                if baselineCond is None:
+                    baselineCond = (t<0)
+                if len(session_responses.shape) == 2:
+                    session_responses = session_responses - session_responses[:, baselineCond].mean(axis=1, keepdims=True)
+
+            if np.shape(session_responses)[0] >= nmin_sessions :
+
+                if np.shape(session_responses)[0] == 1 :
+                    pt.plot(t, session_responses[0],
+                            color=color_virus[virus], ax=AX[j])
+                else :
+                    pt.plot(t, np.mean(session_responses,axis=0),
+                            sy=sem(session_responses,axis=0),
+                            color=color_virus[virus], ax=AX[j])
+            
+            if len(responses[key]) > 0:
+
+                nb_rois = np.column_stack([(r.shape[0]) for r in responses[key]])
+
+                if included_mice is not None:
+                    nb_mice = np.unique(included_mice[key]).shape[0]
+                    pt.annotate(AX[j],
+                                'N=%i (%i mice, %i rois)' % (len(responses[key]), 
+                                                                        nb_mice,
+                                                                        nb_rois.sum())
+                                                                +k*'\n',
+                                                                
+                                color=color_virus[virus], **annotation_props)
+                else :
+                    pt.annotate(AX[j],
+                                'N=%i (%i rois)' % (len(responses[key]), 
+                                                            nb_rois.sum())
+                                                            +k*'\n',
+                                                                
+                                color=color_virus[virus], **annotation_props)          
+            else :
+                pt.annotate(AX[j], 'N=0' +k*'\n', color=color_virus[virus], **annotation_props)
+    
+            pt.annotate(AX[j], state, (0.5, 1.3), ha='center') 
+        
+        pt.set_plot(AX[j], xlabel='time (s)', ylabel='$\\Delta$F/F' if j==0 else '')
+    
+    #pt.set_common_ylims(AX)
+
+    return fig, AX
+
+baselineCond = (ep.t>stat_test_props['interval_pre'][0]) & (ep.t<stat_test_props['interval_pre'][1])
+
+fig, AX = plot_average_response(ep.t, trial_avg_res_highly_skewed, 
+                                        viruses, ['all'], [], varied_parameter, 
+                                        included_mice_highly_skewed, params.NMIN_SESSIONS, 
+                                        baselineSubtraction=True, baselineCond=baselineCond)
+AX[0].set_title('highly skewed', y=1.5)
+AX[0].set_yticks([0., 0.2, 0.4, 0.6, 0.8])
+
+                        
+fig, AX = plot_average_response(ep.t, trial_avg_res_lowly_skewed, 
+                                        viruses, ['all'], [], varied_parameter, 
+                                        included_mice_lowly_skewed, params.NMIN_SESSIONS, 
+                                        baselineSubtraction=True, baselineCond=baselineCond)
+AX[0].set_title('lowly skewed', y=1.5)
+AX[0].set_yticks([0., 0.2, 0.4, 0.6, 0.8])

@@ -467,7 +467,7 @@ def plot_rastermap_no_vparam(responses, ep, viruses, state_cond='all',
         idx_sorted = sort_fct(responses_over_rois[f'{virus}-{state_cond}'], **sort_fcts_options)
 
         im = AX[i].pcolormesh(ep.t, np.arange(responses[f'{virus}-{state_cond}'].shape[0]), 
-                              responses_over_rois[f'{virus}-{state_cond}'][idx_sorted, :], cmap='PiYG', 
+                              responses_over_rois[f'{virus}-{state_cond}'][idx_sorted, :], cmap='bwr', 
                               norm=norm)
         AX[i].set_title(f'{virus}-{state_cond}')
 
@@ -534,7 +534,7 @@ def plot_rastermap_vparam(responses, ep, viruses, state_cond='all', varied_param
                 idx_sorted = sort_fct(responses_over_rois[key], **sort_fcts_options)
 
                 im = AX[i][j].pcolormesh(ep.t, np.arange(responses[key].shape[0]), 
-                                    responses_over_rois[key][idx_sorted, :], cmap='PiYG', 
+                                    responses_over_rois[key][idx_sorted, :], cmap='bwr', 
                                     norm=norms[i])
                 
 
