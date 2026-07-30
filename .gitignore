@@ -205,3 +205,51 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+.Rproj.user
+
+# ==========================================
+# R & RStudio Defaults
+# ==========================================
+# History, workspace state, and RStudio user settings
+.Rhistory
+.RData
+.Ruserdata
+.Rproj.user/
+
+# Packages and source build artifacts
+*.o
+*.so
+*.dll
+*.rds
+*.Rdata
+
+# ==========================================
+# renv (Package Management)
+# ==========================================
+# Ignore local installed library cache (installed packages)
+renv/library/
+renv/python/
+renv/staging/
+
+# DO NOT ignore these - they are required to recreate the environment:
+!renv/activate.R
+!renv/settings.json
+!renv/lockfile.json
+
+# ==========================================
+# Compiled Stan / brms Models
+# ==========================================
+# Cached compiled C++ model executables
+*.rds
+*.so
+*.dll
+
+# ==========================================
+# OS & Environment Files
+# ==========================================
+# Environment variables containing secrets / API keys
+.env
+
+# System files
+.DS_Store
+Thumbs.db
