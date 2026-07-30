@@ -253,3 +253,12 @@ renv/staging/
 # System files
 .DS_Store
 Thumbs.db
+
+
+library/
+local/
+cellar/
+lock/
+python/
+sandbox/
+staging/
