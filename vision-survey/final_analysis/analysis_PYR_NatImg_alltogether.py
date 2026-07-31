@@ -71,6 +71,7 @@ DATASET["nb_neurons"], DATASET["nb_responsive_neurons"], DATASET['mean_dFoF'] = 
 for i in range(len(decoder_window)):
     key = f"accuracies_{decoder_window[i][0]}-{decoder_window[i][1]}"
     DATASET[key] = []
+DATASET["gains"] = []
 
 DATASET_ROIS = dict(mouse=[], virus=[], session=[], rois_id=[], 
                     mean_avg_trial=[], mean_avg_trial_win=[],
@@ -180,8 +181,47 @@ for i, filename in enumerate(DATASET['files']):
             else:
                 print("cond: %s-%s -> [XX] response not included (%i ROIs, %i eps)" % 
                       (virus,state, np.sum(evokedStats['significant']), np.sum(state_filter)))
-            
-        ######### 4) Decoder #########
+
+        ######### 4) Gains #########
+
+        compute_gains = False
+        baselineCond = (ep.t>-1.) & (ep.t<0.)
+
+        if (evokedStats['significant'].size != 0) and \
+            (np.sum(evokedStats['significant'], axis=0)>=params.NMIN_ROIS):
+
+            idx_run = np.argwhere(np.array(states_names) == 'run')[0][0]
+            idx_rest = np.argwhere(np.array(states_names) == 'still')[0][0]
+
+            if (np.sum(states_filters[idx_run]) >= params.NMIN_EPISODES) and \
+                (np.sum(states_filters[idx_rest]) >= params.NMIN_EPISODES):
+
+                run_activity = np.mean(ep.dFoF[states_filters[idx_run]][:, evokedStats['significant'], :], axis=(0,1))
+                run_activity -= np.mean(run_activity[baselineCond]) # baseline subtraction
+
+                rest_activity = np.mean(ep.dFoF[states_filters[idx_rest]][:, evokedStats['significant'], :], axis=(0,1))
+                rest_activity -= np.mean(rest_activity[baselineCond]) # baseline subtraction
+
+                compute_gains = True
+
+            else :
+                print("Not enough run or still episodes to compute gains.")
+
+        if compute_gains :
+            # multiplicative gain fit
+            def to_minimize(x):
+                return np.sum(
+                    (x[0] * rest_activity[window]
+                        - run_activity[window])**2
+                )
+    
+            res = minimize(to_minimize, [1.0])
+            DATASET["gains"].append(res.x[0])
+
+        else :
+            DATASET["gains"].append(np.nan)
+
+        ######### 5) Decoder #########
 
         from sklearn.neighbors import KNeighborsClassifier
         from sklearn.model_selection import train_test_split
@@ -241,7 +281,7 @@ for i, filename in enumerate(DATASET['files']):
             
             DATASET[key].append(np.mean(accuracies))
 
-        ######### 5) Store ROIs' data #########
+        ######### 6) Store ROIs' data #########
         for roi_idx in range(len(evokedStats['significant'])):
             DATASET_ROIS['mouse'].append(DATASET['subjects'][i])
             DATASET_ROIS['virus'].append(virus)
@@ -294,7 +334,7 @@ DATASET['session'] = np.array([os.path.basename(file)[:-4] for file in DATASET['
 df = pd.DataFrame(DATASET).drop(columns=['protocol_ids', 'protocols', 'files']).set_index('session')
 df['perc_resp'] = df['nb_responsive_neurons'] / df['nb_neurons'] * 100
 
-excel_filename = 'natimg_summary_data_' + 'PYR' + '.xlsx'
+excel_filename = pname + '_summary_data_' + 'PN' + '.xlsx'
 df.to_excel(os.path.join(savepath_excel, excel_filename))
 
 df
@@ -353,7 +393,7 @@ from scipy import stats
 from itertools import compress
 
 # fitting window
-t_cond = ep.t > 0.
+t_cond = window = (ep.t>stat_test_props['interval_post'][0]) & (ep.t<stat_test_props['interval_post'][1])
 
 # baseline window
 baselineCond = (ep.t>stat_test_props['interval_pre'][0]) & (ep.t<stat_test_props['interval_pre'][1])
@@ -366,8 +406,6 @@ for virus in ['sgRosa', 'sgCnr1']:
     gains[virus] = []
     mice[virus] = []
 
-    run_sessions   = dFoF[f'{virus}-run']
-    still_sessions = dFoF[f'{virus}-still']
     run_mice = np.array(included_mice[f'{virus}-run']) 
     still_mice = np.array(included_mice[f'{virus}-still'])
 
@@ -417,6 +455,7 @@ df2 = pd.DataFrame({'mouse': mice['sgRosa']+mice['sgCnr1'],
               'virus': ['sgRosa']*len(mice['sgRosa'])+['sgCnr1']*len(mice['sgCnr1']), 
               'gain': gains['sgRosa']+gains['sgCnr1']})
 
+excel_filename = pname + '_summary_data_' + 'PN' + '.xlsx'
 with pd.ExcelWriter(os.path.join(savepath_excel, excel_filename)) as writer:
     df.to_excel(writer, sheet_name='sessions')
     df2.to_excel(writer, sheet_name='mice')
